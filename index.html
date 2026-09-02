@@ -107,6 +107,14 @@
           balik beserta galat relatifnya. Itu satu-satunya cara memisahkan
           perambatan balik yang benar dari yang kebetulan bekerja.
         </p>
+        <p>
+          <strong>Jangan percayai kalimat itu juga.</strong> Panel
+          <em>Sabotase</em> memasang cacat perambatan balik yang sungguhan
+          &mdash; satu tanda yang terbalik, satu turunan yang lupa dikalikan,
+          satu faktor dua yang tertinggal. Nyalakan salah satunya, latih, dan
+          perhatikan kurva galatnya tetap menurun dengan meyakinkan. Lalu tekan
+          pemeriksa gradien.
+        </p>
       </section>
 
       <div id="memuat" class="memuat">
@@ -224,6 +232,37 @@
             <code>h</code>, selisih tengah sebanding dengan <code>h&sup2;</code>,
             dan selisih itu menentukan apakah cacat sungguhan bisa dibedakan
             dari derau pembulatan.
+          </dd>
+
+          <dt>Sabotase terkendali</dt>
+          <dd>
+            Cacat yang dipasang dengan sengaja untuk menguji alat ukurnya.
+            Sebuah pemeriksa yang tidak pernah gagal tidak memeriksa apa pun,
+            dan satu-satunya cara mengetahui apakah ia benar-benar bekerja
+            adalah memberinya sesuatu yang harus ia tangkap. Keempat cacat di
+            halaman ini bukan derau acak melainkan kesalahan yang benar-benar
+            sering ditulis orang &mdash; derau acak langsung merusak pelatihan
+            dan karena itu tidak mengajarkan apa pun.
+          </dd>
+
+          <dt>Batas pemeriksaan gradien</dt>
+          <dd>
+            Pemeriksa gradien memeriksa apakah turunannya <em>benar</em>, bukan
+            apakah turunannya <em>dipakai</em>. Cacat &ldquo;bias tidak pernah
+            diperbarui&rdquo; di panel Sabotase lolos darinya sepenuhnya, dan
+            memang harus lolos: cacat itu bekerja pada langkah pembaruan, jauh
+            setelah gradiennya selesai dihitung. Alat yang batasnya tidak
+            diketahui lebih berbahaya daripada tidak punya alat.
+          </dd>
+
+          <dt>Jaringan pembanding</dt>
+          <dd>
+            Saat sebuah cacat menyala, jaringan kedua dengan bobot awal yang
+            sama persis dan perambatan balik yang benar ikut dilatih
+            berdampingan, dan muncul sebagai garis putus-putus di kurva galat.
+            Benih yang sama itu yang membuat perbandingannya bermakna: apa pun
+            yang membedakan kedua kurva hanyalah cacatnya, bukan keberuntungan
+            titik awal.
           </dd>
 
           <dt>Laju belajar</dt>

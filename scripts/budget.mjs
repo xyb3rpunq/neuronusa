@@ -108,11 +108,35 @@ for (const wajib of [
     process.exit(3);
   }
 }
+// Modul yang wajib ada di muatan pertama. `nusa.konform` sengaja tidak di
+// sini: ia ikut berkas yang malas bersama vektornya, karena hanya tombol
+// konformansi yang membutuhkannya.
+const WAJIB_AWAL = ["nusa", "nusa.fx", "nusa.inti", "nusa.jaringan", "nusa.tautan", "app"];
+const WAJIB_MALAS = ["nusa.konform", "nusa.vektor"];
+
 const vfs = readFileSync(join(DIST, "vendor", "nusa_vfs.js"), "utf8");
-for (const modul of ["nusa", "nusa.fx", "nusa.inti", "nusa.jaringan", "app"]) {
+for (const modul of WAJIB_AWAL) {
   if (!vfs.includes(`"${modul}":`)) {
     console.error(`Modul '${modul}' tidak ada di dalam vendor/nusa_vfs.js`);
     process.exit(3);
   }
 }
-console.log("Seluruh berkas wajib ada, dan kelima modul Python ada di dalamnya.");
+const vfsMalas = readFileSync(join(DIST, "vendor", "vektor_vfs.js"), "utf8");
+for (const modul of WAJIB_MALAS) {
+  if (!vfsMalas.includes(`"${modul}":`)) {
+    console.error(`Modul '${modul}' tidak ada di dalam vendor/vektor_vfs.js`);
+    process.exit(3);
+  }
+}
+// Yang malas tidak boleh ikut ke muatan pertama; kalau ikut, penundaannya
+// tidak menghemat apa pun dan hanya menambah satu berkas.
+for (const modul of WAJIB_MALAS) {
+  if (vfs.includes(`"${modul}":`)) {
+    console.error(`Modul '${modul}' seharusnya malas, tetapi ada di muatan pertama.`);
+    process.exit(3);
+  }
+}
+console.log(
+  `Seluruh berkas wajib ada: ${WAJIB_AWAL.length} modul di muatan pertama, ` +
+    `${WAJIB_MALAS.length} ditunda.`,
+);

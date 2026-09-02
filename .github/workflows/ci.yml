@@ -2,13 +2,13 @@
 #
 # Gerbang yang harus dilewati sebelum apa pun sampai ke pengguna:
 #
-#   1. Python  — 58 uji mesin, lalu konformansi terhadap 3.796 pernyataan
+#   1. Python  — 78 uji mesin, lalu konformansi terhadap 3.796 pernyataan
 #                berpola bit yang dihasilkan implementasi Rust. Python adalah
 #                implementasi keenam setelah Rust, Go, PL/SQL, Lua, dan Swift.
 #                Dijalankan di tiga versi CPython, karena "berjalan di mesin
 #                saya" bukan pernyataan yang bisa diperiksa siapa pun.
-#   2. Web     — bangun, anggaran ukuran, dan pemeriksaan bahwa mesin Python
-#                benar-benar sampai ke dalam hasil build.
+#   2. Web     — periksa tipe, bangun, anggaran ukuran, dan pemeriksaan bahwa
+#                mesin Python benar-benar sampai ke dalam hasil build.
 #   3. Terbit  — hanya bila keduanya lolos, dan hanya dari `main`.
 #
 # Yang **tidak** bisa dijamin CI ini: bahwa Brython di dalam peramban
@@ -99,6 +99,9 @@ jobs:
 
       - name: Audit paket npm
         run: npm audit --audit-level=high
+
+      - name: Periksa tipe
+        run: npm run typecheck
 
       - name: Bangun produksi
         run: npm run build

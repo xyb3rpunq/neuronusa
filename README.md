@@ -32,6 +32,10 @@ hingga, lalu ditampilkan berdampingan dengan hasil perambatan balik beserta
 galat relatifnya. Itu satu-satunya cara memisahkan perambatan balik yang benar
 dari yang kebetulan bekerja.
 
+**Dan jangan percayai kalimat itu juga.** Halaman ini punya panel *Sabotase*
+yang memasang cacat perambatan balik sungguhan, supaya klaim di atas bisa
+dibantah pengunjung alih-alih dipercaya.
+
 ```
 LOLOS   Galat relatif terburuk 2.803e-08 pada 17 parameter. Ambangnya 1e-5.
 
@@ -54,12 +58,93 @@ w L0 n3←2     -0.72119     0.00002257          0.00002257         2.77e-09
 | **Peta bobot** | Tebal garis menyatakan besarnya, warnanya menyatakan tandanya — lengkap dengan tabel nilai tepatnya. |
 | **Langkah demi langkah** | Satu contoh melewati jaringan, maju lalu balik: keluaran tiap neuron, delta tiap neuron, dan gradien tiap bias. |
 | **Pemeriksaan gradien** | Seluruh turunan dihitung ulang dengan selisih tengah, ditampilkan berdampingan dan diurutkan dari galat terbesar. |
+| **Sabotase** | Empat cacat perambatan balik yang bisa dinyalakan, dengan jaringan pembanding yang benar dilatih berdampingan. |
 | **Konformansi** | Tombol yang menjalankan ulang 3.796 pernyataan lintas bahasa di peramban Anda, sekarang, dengan bilah kemajuan. |
-| **Catatan dan definisi** | Sebelas istilah, ditulis untuk dibaca orang yang belum paham. |
+| **Bagikan** | Alamatnya selalu mencerminkan setelan sekarang; membukanya di tempat lain menghasilkan jaringan yang sama persis. |
+| **Catatan dan definisi** | Empat belas istilah, ditulis untuk dibaca orang yang belum paham. |
 
 Setiap gambar punya keterangan yang menjelaskan **apa yang harus dilihat**,
 bukan hanya menamai sumbunya. Gambar tanpa penjelasan hanya berguna bagi yang
 sudah paham isinya, dan pembaca yang paling butuh gambar justru yang belum.
+
+---
+
+## Sabotase: membantah klaim situs ini sendiri
+
+Sebuah pemeriksa yang tidak pernah gagal tidak memeriksa apa pun. Selama
+pemeriksa gradien di sini selalu menampilkan **LOLOS**, tidak ada alasan bagi
+siapa pun untuk percaya ia benar-benar memeriksa sesuatu.
+
+Panel *Sabotase* memasang empat cacat sungguhan — kesalahan yang benar-benar
+sering ditulis orang, bukan derau acak. Derau acak langsung merusak pelatihan
+dan karena itu tidak mengajarkan apa pun; yang berbahaya justru cacat yang
+membiarkan segalanya tampak baik-baik saja.
+
+Diukur pada XOR, benih 7, empat neuron tersembunyi, 3.000 epoch:
+
+| Cacat | Bekerja di | Pemeriksa gradien | Galat akhir | Titik benar |
+|---|---|---|---|---|
+| *(tidak ada)* | — | LOLOS | 4,34e-05 | 4/4 |
+| Satu tanda terbalik | gradien | **GAGAL** | **4,24e-05** | 4/4 |
+| Turunan aktivasi tidak dikalikan | gradien | **GAGAL** | 1,25e-01 | 3/4 |
+| Faktor dua tertinggal | gradien | **GAGAL** | **2,11e-05** | 4/4 |
+| Bias tidak pernah diperbarui | pembaruan | **LOLOS** | 3,13e-02 | 4/4 |
+
+Baca baris kedua sekali lagi. Perambatan balik yang **salah tandanya** pada
+satu bobot berakhir di galat yang *lebih rendah* daripada yang benar, dan
+menjawab keempat titik XOR dengan benar. Tidak ada satu pun angka di kurva
+galat yang bisa membedakan keduanya. Baris keempat lebih buruk lagi: cacatnya
+menyamar sebagai perbaikan, karena menggandakan seluruh gradien setara dengan
+menggandakan laju belajar.
+
+Saat sebuah cacat menyala, jaringan pembanding dengan **bobot awal yang sama
+persis** dan perambatan balik yang benar ikut dilatih berdampingan, dan muncul
+sebagai garis putus-putus di kurva galat. Benih yang sama itu yang membuat
+perbandingannya bermakna: apa pun yang membedakan kedua kurva hanyalah
+cacatnya.
+
+### Baris terakhir adalah yang paling penting
+
+`Bias tidak pernah diperbarui` **lolos** pemeriksaan gradien, dan memang harus
+lolos. Pemeriksa gradien memeriksa apakah turunannya *benar*, bukan apakah
+turunannya *dipakai*; cacat itu bekerja pada langkah pembaruan, jauh setelah
+gradiennya selesai dihitung.
+
+Itu bukan kelemahan yang perlu ditutupi. Alat yang batasnya tidak diketahui
+lebih berbahaya daripada tidak punya alat, dan sebuah halaman yang mengajarkan
+pemeriksaan gradien tanpa mengajarkan batasnya mengajarkan rasa aman yang
+keliru.
+
+Seluruh angka di tabel di atas dikunci uji — termasuk yang kontraintuitif.
+`test_tanda_terbalik_tidak_bisa_dibedakan_dari_kurva_galatnya` menuntut kedua
+galat akhirnya berada dalam setengah orde besaran satu sama lain;
+`test_faktor_dua_justru_terlihat_lebih_baik` menuntut yang rusak berakhir
+*lebih rendah*. Kalau suatu saat tidak lagi begitu, teks di halaman harus ikut
+berubah, dan ujinya yang akan memaksa perubahan itu.
+
+---
+
+## Tautan yang bisa dibagikan
+
+Alamat di bilah alamat selalu mencerminkan setelan sekarang:
+
+```
+https://xyb3rpunq.github.io/neuronusa/#d=xor&h=0&a=tanh&s=7&l=0.5&m=0.9&c=tidak_ada
+```
+
+Membukanya menghasilkan jaringan yang **sama persis** — benih yang sama berarti
+bobot awal yang sama, dan pelatihan yang sama bisa diulang. Itu bukan
+kenyamanan tambahan melainkan syarat: hasil yang tidak bisa diulang tidak bisa
+diperiksa siapa pun. (Tautan di atas menyetel neuron tersembunyi ke nol pada
+XOR — batas Minsky–Papert, siap dilihat sendiri.)
+
+Setiap nilai di alamat itu ditulis orang lain, jadi setiap nilai diperiksa.
+Yang di luar rentang dibuang dan sisanya tetap dipakai; menolak seluruh tautan
+karena satu nilai keliru akan menghukum pembaca atas kesalahan pengirimnya.
+Logikanya ada di `py/nusa/tautan.py` — modul mesin, bukan bagian antarmuka —
+justru supaya ia bisa diuji di CPython. Sebelas uji, termasuk yang
+memastikan `NaN` ditolak: pemeriksa rentang yang ditulis sebagai *"tolak yang
+di luar"* akan meloloskan `NaN`, karena setiap perbandingannya bernilai salah.
 
 ---
 
@@ -194,9 +279,10 @@ npm run dev
 |---|---|
 | `npm run dev` | Kemas mesin Python, lalu jalankan server pengembangan di `:5176`. |
 | `npm run build` | Kemas, lalu bangun ke `dist/`. |
-| `npm test` | 58 uji mesin Python (CPython). |
+| `npm test` | 78 uji mesin Python (CPython). |
 | `npm run conform` | Adu Python lawan 3.796 vektor Rust. |
 | `npm run budget` | Anggaran ukuran berkas terbitan. |
+| `npm run typecheck` | Periksa tipe `src/nyalakan.ts` dan `vite.config.ts`. |
 | `npm run kemasan` | Pastikan kemasan sepadan dengan sumbernya, bita demi bita. |
 | `npm run audit:all` | Seluruhnya, berurutan. |
 
@@ -294,7 +380,7 @@ tidak lagi sepadan dengan angka di sebelahnya.
 
 ## Yang diuji, dan kenapa
 
-58 uji, ditulis untuk gagal ketika sesuatu memang salah:
+78 uji, ditulis untuk gagal ketika sesuatu memang salah:
 
 - **`test_pemeriksa_gradien_menangkap_gradien_yang_dirusak`** — merusak satu
   gradien dengan sengaja, lalu menuntut pemeriksanya gagal. Pemeriksa yang
@@ -317,6 +403,18 @@ tidak lagi sepadan dengan angka di sebelahnya.
   memberi hasil identik dengan yang sekaligus, pada tiga ukuran potongan.
 - **`test_laporan_kosong_tidak_dianggap_lolos`** — laporan tanpa satu pun
   pernyataan bukan keberhasilan melainkan tanda vektornya tidak terbaca.
+- **`test_setiap_cacat_tetap_terlihat_belajar`** — menuntut galat *menurun*
+  pada keempat cacat. Kalau ada yang tidak, kalimat "jaringan yang gradiennya
+  salah tetap sering belajar" tidak berlaku untuk cacat itu dan halaman tidak
+  boleh memakainya sebagai contoh.
+- **`test_bias_beku_tidak_bisa_ditangkap_pemeriksa_gradien`** — mengunci
+  *batas* alatnya, bukan kemampuannya.
+- **`test_cacat_tidak_mengubah_perambatan_maju`** — cacatnya hanya di jalur
+  mundur, dibandingkan pola bit demi pola bit. Kalau ramalannya ikut berubah,
+  yang dibandingkan bukan lagi dua gradien pada jaringan yang sama.
+- **`test_nan_dan_takhingga_ditolak_walau_perbandingannya_aneh`** — `NaN`
+  gagal setiap perbandingan, termasuk yang dipakai menolaknya. Satu `NaN` yang
+  lolos dari alamat merusak seluruh bobot dalam satu langkah.
 
 ---
 

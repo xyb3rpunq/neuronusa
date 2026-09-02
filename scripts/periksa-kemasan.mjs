@@ -77,10 +77,20 @@ for (const berkas of readdirSync(dirNusa).filter((f) => f.endsWith(".py"))) {
 }
 
 for (const [nama, jalur] of diharapkan) {
-  const entri = vfs[nama];
+  // Dicari di kedua kemasan, tanpa memaksakan modul mana ada di mana.
+  //
+  // Sebagian modul sengaja ditunda ke berkas yang malas — sekarang hanya
+  // `nusa.konform`, yang cuma dibutuhkan tombol konformansi. Memaksakan
+  // daftarnya di sini berarti dua tempat yang harus dijaga tetap sepadan, dan
+  // yang tertinggal akan menggagalkan build atas keputusan yang benar.
+  const diMalas = vfsVektor[nama] !== undefined;
+  const entri = diMalas ? vfsVektor[nama] : vfs[nama];
   if (!entri) {
-    catat(`Modul '${nama}' tidak ada di dalam kemasan.`);
+    catat(`Modul '${nama}' tidak ada di kemasan mana pun.`);
     continue;
+  }
+  if (vfs[nama] !== undefined && vfsVektor[nama] !== undefined) {
+    catat(`Modul '${nama}' ada di kedua kemasan; salah satunya akan basi.`);
   }
   if (entri[0] !== ".py") catat(`Modul '${nama}' bukan bertipe .py.`);
 
@@ -104,6 +114,12 @@ for (const [nama, jalur] of diharapkan) {
 for (const nama of Object.keys(vfs)) {
   if (nama.startsWith("$")) continue;
   if (!diharapkan.has(nama)) catat(`Modul tak dikenal ikut terkemas: '${nama}'.`);
+}
+for (const nama of Object.keys(vfsVektor)) {
+  if (nama.startsWith("$") || nama === "nusa.vektor") continue;
+  if (!diharapkan.has(nama)) {
+    catat(`Modul tak dikenal ikut terkemas di berkas malas: '${nama}'.`);
+  }
 }
 
 // --- 2. vektor --------------------------------------------------------------

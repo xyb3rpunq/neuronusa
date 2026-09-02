@@ -98,6 +98,81 @@ AKTIVASI = {
 
 
 # ---------------------------------------------------------------------------
+# Cacat yang bisa dinyalakan
+# ---------------------------------------------------------------------------
+
+#: Cacat perambatan balik yang bisa dipasang dengan sengaja.
+#:
+#: # Kenapa ini ada di kode produksi dan bukan di berkas uji
+#:
+#: Karena seluruh alasan proyek ini adalah satu kalimat: *jaringan yang
+#: gradiennya salah tetap sering "belajar", hanya lebih lambat dan berhenti di
+#: tempat yang keliru.* Kalimat itu tidak boleh cuma dipercaya. Pengunjung
+#: harus bisa menyalakan cacatnya sendiri, melihat kurva galatnya tetap
+#: menurun dengan meyakinkan, lalu menekan pemeriksa gradien dan melihatnya
+#: berteriak.
+#:
+#: Keempatnya cacat yang benar-benar sering ditulis orang, bukan derau acak:
+#: satu tanda yang terbalik, satu turunan yang lupa dikalikan, satu faktor dua
+#: yang tertinggal, dan satu pembaruan yang tidak pernah dijalankan. Derau acak
+#: akan langsung merusak pelatihan dan karena itu tidak mengajarkan apa pun —
+#: yang berbahaya justru cacat yang membiarkan segalanya tampak baik-baik saja.
+#:
+#: Tiap nilai: (label, tempat cacatnya bekerja, apakah pemeriksa gradien
+#: menangkapnya, penjelasan).
+CACAT = {
+    "tidak_ada": (
+        "Tidak ada",
+        None,
+        None,
+        "Perambatan balik yang benar — dasar pembanding untuk keempat "
+        "cacat di bawah. Perhatikan galat akhirnya, lalu bandingkan dengan "
+        "galat akhir tiap cacat.",
+    ),
+    "tanda_terbalik": (
+        "Satu tanda terbalik",
+        "gradien",
+        True,
+        "Satu bobot gradiennya dibalik tandanya — salah ketik indeks, atau "
+        "kurang tanda minus di satu tempat. Bobot itu didorong ke arah yang "
+        "justru memperburuk, sementara enam belas lainnya benar. Pelatihan "
+        "tetap berjalan; ia hanya berhenti di tempat yang keliru.",
+    ),
+    "turunan_hilang": (
+        "Turunan aktivasi tidak dikalikan",
+        "gradien",
+        True,
+        "Delta lapis tersembunyi diteruskan tanpa dikalikan turunan "
+        "aktivasinya. Ini cacat perambatan balik yang paling sering ditulis "
+        "orang: aturan rantai kehilangan satu mata rantai. Gradiennya jadi "
+        "salah arah maupun salah besaran, tetapi tetap menunjuk ke arah yang "
+        "kira-kira benar cukup sering untuk membuat galatnya menurun.",
+    ),
+    "faktor_dua": (
+        "Faktor dua tertinggal",
+        "gradien",
+        True,
+        "Galat kuadrat di sini dibagi dua supaya turunannya menjadi (y − t) "
+        "tanpa faktor dua yang menempel di mana-mana. Cacat ini melupakan "
+        "pembagian itu, sehingga seluruh gradien menjadi dua kali lipat. "
+        "Pelatihan tetap benar arahnya dan hanya melangkah dua kali lebih "
+        "jauh — nyaris mustahil dilihat dari kurva galat, dan langsung "
+        "terlihat oleh pemeriksa gradien sebagai galat relatif 1,0.",
+    ),
+    "bias_beku": (
+        "Bias tidak pernah diperbarui",
+        "langkah",
+        False,
+        "Gradiennya dihitung benar, tetapi biasnya tidak pernah digeser. "
+        "Perhatikan baik-baik: pemeriksa gradien **tidak** menangkap yang ini, "
+        "dan memang tidak bisa. Ia memeriksa apakah turunannya benar, bukan "
+        "apakah turunannya dipakai. Setiap alat punya batas, dan alat yang "
+        "batasnya tidak diketahui lebih berbahaya daripada tidak punya alat.",
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
 # Jaringan
 # ---------------------------------------------------------------------------
 
@@ -124,7 +199,19 @@ class Jaringan:
         # tidak berlaku.
         self.f_keluaran, self.df_keluaran = AKTIVASI["sigmoid"]
         self.benih = benih
+        self.cacat = "tidak_ada"
         self.acak_ulang(benih)
+
+    def atur_cacat(self, nama):
+        """Memasang atau melepas cacat perambatan balik.
+
+        Lihat :data:`CACAT`. Melempar bila namanya tidak dikenal, alih-alih
+        diam-diam tidak memasang apa pun: cacat yang tidak terpasang padahal
+        diminta akan membuat pemeriksa gradien tampak gagal menangkapnya.
+        """
+        if nama not in CACAT:
+            raise ValueError("cacat tidak dikenal: %r" % nama)
+        self.cacat = nama
 
     # -- bobot --------------------------------------------------------------
 
@@ -290,6 +377,51 @@ class Jaringan:
 
     # -- mundur -------------------------------------------------------------
 
+    def _delta_keluaran(self, keluaran, sasaran):
+        """Delta lapis keluaran: turunan galat dikali turunan aktivasinya.
+
+        Inilah satu-satunya tempat sasaran ikut dihitung. Dipisah menjadi
+        metode supaya :meth:`gradien` dan :meth:`telusuri` memakai baris yang
+        sama persis — dua salinan aturan rantai akan menyimpang, dan yang
+        menyimpang adalah yang ditampilkan ke pengunjung.
+        """
+        delta = [
+            (keluaran[j] - sasaran[j]) * self.df_keluaran(keluaran[j])
+            for j in range(len(keluaran))
+        ]
+        if self.cacat == "faktor_dua":
+            # Galat kuadrat di sini dibagi dua supaya turunannya (y − t).
+            # Cacat ini melupakan pembagian itu.
+            delta = [d * 2.0 for d in delta]
+        return delta
+
+    def _delta_mundur(self, lap, sebelum, delta):
+        """Delta lapis sebelumnya.
+
+        Bobot yang sama dipakai mundur, dan itulah seluruh gagasan perambatan
+        balik.
+        """
+        baru = []
+        for k in range(len(sebelum)):
+            jumlah = 0.0
+            for j in range(len(self.bobot[lap])):
+                jumlah += self.bobot[lap][j][k] * delta[j]
+            if self.cacat == "turunan_hilang":
+                # Aturan rantai kehilangan satu mata rantai.
+                baru.append(jumlah)
+            else:
+                baru.append(jumlah * self.df(sebelum[k]))
+        return baru
+
+    def _rusakkan(self, gw):
+        """Menerapkan cacat yang bekerja setelah gradiennya lengkap."""
+        if self.cacat == "tanda_terbalik":
+            # Satu bobot saja, dan bukan yang dipilih acak: cacat yang
+            # berpindah-pindah tiap pemanggilan tidak bisa diperiksa ulang,
+            # dan proyek ini tentang hasil yang bisa diulang.
+            gw[0][0][0] = -gw[0][0][0]
+
+
     def gradien(self, data):
         """Gradien galat terhadap setiap bobot dan bias.
 
@@ -309,10 +441,7 @@ class Jaringan:
             # Delta lapis keluaran: turunan galat kuadrat dikali turunan
             # aktivasinya. Inilah satu-satunya tempat sasaran ikut dihitung.
             keluaran = aktif[-1]
-            delta = [
-                (keluaran[j] - t[j]) * self.df_keluaran(keluaran[j])
-                for j in range(len(keluaran))
-            ]
+            delta = self._delta_keluaran(keluaran, t)
 
             for lap in range(akhir, -1, -1):
                 sebelum = aktif[lap]
@@ -322,15 +451,7 @@ class Jaringan:
                         gw[lap][j][k] += delta[j] * sebelum[k]
 
                 if lap > 0:
-                    # Delta lapis sebelumnya: bobot yang sama dipakai mundur,
-                    # dan itulah seluruh gagasan perambatan balik.
-                    baru = []
-                    for k in range(len(sebelum)):
-                        jumlah = 0.0
-                        for j in range(len(self.bobot[lap])):
-                            jumlah += self.bobot[lap][j][k] * delta[j]
-                        baru.append(jumlah * self.df(sebelum[k]))
-                    delta = baru
+                    delta = self._delta_mundur(lap, sebelum, delta)
 
         n = float(len(data))
         for lap in range(len(gw)):
@@ -338,6 +459,8 @@ class Jaringan:
                 gb[lap][j] /= n
                 for k in range(len(gw[lap][j])):
                     gw[lap][j][k] /= n
+
+        self._rusakkan(gw)
         return gw, gb
 
     def telusuri(self, x, sasaran):
@@ -379,10 +502,7 @@ class Jaringan:
             aktif.append(keluar)
 
         keluaran = aktif[-1]
-        delta = [
-            (keluaran[j] - sasaran[j]) * self.df_keluaran(keluaran[j])
-            for j in range(len(keluaran))
-        ]
+        delta = self._delta_keluaran(keluaran, sasaran)
 
         # Disusun dari belakang lalu dibalik, supaya indeksnya sepadan dengan
         # ``self.bobot`` alih-alih terbalik terhadapnya.
@@ -411,13 +531,9 @@ class Jaringan:
                     gw[lap][j][k] = 0.0 + delta[j] * sebelum[k]
 
             if lap > 0:
-                baru = []
-                for k in range(len(sebelum)):
-                    jumlah = 0.0
-                    for j in range(len(self.bobot[lap])):
-                        jumlah += self.bobot[lap][j][k] * delta[j]
-                    baru.append(jumlah * self.df(sebelum[k]))
-                delta = baru
+                delta = self._delta_mundur(lap, sebelum, delta)
+
+        self._rusakkan(gw)
 
         galat = 0.0
         for j in range(len(sasaran)):
@@ -455,12 +571,18 @@ class Jaringan:
 
         sebelum = self.galat(data) if hitung_galat else None
         gw, gb = self.gradien(data)
+        # Cacat "bias_beku" bekerja di sini dan bukan di gradiennya. Itu
+        # disengaja: pemeriksa gradien memeriksa apakah turunannya benar,
+        # bukan apakah turunannya dipakai — jadi cacat ini lolos darinya, dan
+        # justru itulah yang perlu diperlihatkan.
+        bias_beku = self.cacat == "bias_beku"
         for lap in range(len(self.bobot)):
             for j in range(len(self.bobot[lap])):
                 self._kecepatan_b[lap][j] = (
                     momentum * self._kecepatan_b[lap][j] - laju * gb[lap][j]
                 )
-                self.bias[lap][j] += self._kecepatan_b[lap][j]
+                if not bias_beku:
+                    self.bias[lap][j] += self._kecepatan_b[lap][j]
                 for k in range(len(self.bobot[lap][j])):
                     self._kecepatan_w[lap][j][k] = (
                         momentum * self._kecepatan_w[lap][j][k] - laju * gw[lap][j][k]

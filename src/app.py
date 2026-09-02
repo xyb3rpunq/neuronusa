@@ -23,8 +23,8 @@ import math
 from browser import document, html, timer, window
 from browser import svg as gambar_svg
 
-from nusa import fx
-from nusa.jaringan import AKTIVASI, DATASET, Jaringan
+from nusa import fx, tautan
+from nusa.jaringan import AKTIVASI, CACAT, DATASET, Jaringan
 
 # ---------------------------------------------------------------------------
 # Bantuan tampilan
@@ -158,6 +158,130 @@ def warna_tema(nama):
 
 
 # ---------------------------------------------------------------------------
+# Tautan yang bisa dibagikan
+# ---------------------------------------------------------------------------
+#
+# Penyandian dan pemeriksaannya ada di ``nusa.tautan``, bukan di sini. Yang
+# tersisa di berkas ini hanya lem ke peramban: membaca ``location.hash`` dan
+# menulis kembali lewat ``replaceState``.
+#
+# Pemisahan itu bukan kerapian melainkan syarat: isi sebuah alamat ditulis
+# orang lain, dan kode yang memeriksa masukan luar wajib punya uji. Selama ia
+# tinggal di berkas yang mengimpor ``browser``, CPython tidak bisa mengimpornya
+# sama sekali dan karena itu tidak bisa mengujinya sama sekali.
+
+
+def baca_tautan():
+    """Setelan yang sah dari alamat sekarang."""
+    return tautan.baca(window.location.hash)
+
+
+def tulis_tautan():
+    """Menyelaraskan alamat dengan setelan sekarang.
+
+    Memakai ``replaceState`` dan bukan menyetel ``location.hash`` langsung:
+    yang terakhir menambah satu entri riwayat setiap kali sebuah penggeser
+    digerakkan, sehingga tombol kembali peramban harus ditekan puluhan kali
+    untuk keluar dari halaman ini. ``replaceState`` juga tidak memicu
+    ``hashchange``, sehingga penulisan ini tidak memanggil balik
+    :func:`terapkan_tautan`.
+    """
+    setelan = {nama: getattr(K, nama) for nama, _kunci in tautan.KUNCI}
+    # Keadaan riwayat yang ada diteruskan apa adanya, bukan ``None``.
+    #
+    # Brython memetakan ``None`` menjadi objek Python, bukan menjadi ``null``
+    # JavaScript, dan ``replaceState`` menolaknya dengan "could not be cloned".
+    # Menyerahkan kembali ``history.state`` selalu aman: apa pun isinya, ia
+    # sudah pernah melewati pengklonan itu sekali.
+    window.history.replaceState(
+        window.history.state, "", "#" + tautan.tulis(setelan)
+    )
+
+
+def terapkan_tautan(_ev=None):
+    """Menerapkan setelan dari alamat ke halaman yang sudah terbuka.
+
+    Dipanggil saat alamatnya berubah tanpa halaman dimuat ulang: tombol
+    kembali peramban, atau tautan yang ditempel ke bilah alamat sementara
+    halaman ini sudah terbuka. Tanpa ini, menempel tautan hanya mengubah
+    tulisan di bilah alamat dan tidak mengubah apa pun di layar — kegagalan
+    yang membuat seluruh gagasan tautan-yang-bisa-dibagikan tidak berguna
+    justru bagi orang yang paling sering memakainya.
+    """
+    setelan = baca_tautan()
+    if not setelan:
+        return
+    K.melatih = False
+    for nama, nilai in setelan.items():
+        setattr(K, nama, nilai)
+    K.bangun()
+    gambar_kontrol()
+    gambar_ulang()
+
+
+def salin_tautan(_ev=None):
+    """Menyalin alamat sekarang ke papan klip."""
+    wadah = document["kabar-tautan"]
+    kosongkan(wadah)
+
+    def berhasil(_hasil):
+        wadah <= html.SPAN("Tautan disalin.", Class="kabar kabar--benar")
+
+    def gagal(_galat):
+        # Papan klip bisa ditolak peramban, dan itu bukan kesalahan yang perlu
+        # ditutupi. Alamat di bilah alamat sudah benar; pengguna tinggal
+        # menyalinnya sendiri.
+        wadah <= html.SPAN(
+            "Peramban menolak akses papan klip \u2014 salin saja alamat di bilah "
+            "alamat, isinya sudah tepat.",
+            Class="kabar",
+        )
+
+    try:
+        window.navigator.clipboard.writeText(window.location.href).then(berhasil, gagal)
+    except Exception:  # noqa: BLE001 - API-nya tidak ada di sebagian peramban
+        gagal(None)
+
+
+# ---------------------------------------------------------------------------
+# Tema
+# ---------------------------------------------------------------------------
+
+#: Ketiga pilihan tema. "sistem" berarti tidak memasang atribut apa pun,
+#: sehingga ``prefers-color-scheme`` yang menentukan.
+TEMA = [("sistem", "Ikut sistem"), ("terang", "Terang"), ("gelap", "Gelap")]
+
+_KUNCI_TEMA = "neuronusa:tema"
+
+
+def tema_tersimpan():
+    try:
+        nilai = window.localStorage.getItem(_KUNCI_TEMA)
+    except Exception:  # noqa: BLE001 - penyimpanan bisa dimatikan sama sekali
+        return "sistem"
+    return nilai if nilai in [k for k, _ in TEMA] else "sistem"
+
+
+def pasang_tema(nama, gambar_lagi=True):
+    akar = document.documentElement
+    if nama == "sistem":
+        akar.removeAttribute("data-tema")
+    else:
+        akar.setAttribute("data-tema", nama)
+    try:
+        window.localStorage.setItem(_KUNCI_TEMA, nama)
+    except Exception:  # noqa: BLE001 - jendela penyamaran, dll.
+        pass
+    K.tema = nama
+    if gambar_lagi:
+        # Kanvas menyimpan piksel, bukan rujukan warna. Ia tidak ikut berubah
+        # saat tema berpindah, jadi ia harus digambar ulang — tidak seperti
+        # SVG di sekelilingnya, yang mengikuti CSS dengan sendirinya.
+        gambar_kontrol()
+        gambar_ulang()
+
+
+# ---------------------------------------------------------------------------
 # Keadaan aplikasi
 # ---------------------------------------------------------------------------
 
@@ -181,6 +305,23 @@ class Keadaan:
         self.gambar_berat_terakhir = 0.0
         # Contoh data mana yang sedang ditelusuri langkah demi langkah.
         self.titik_jejak = 0
+        self.cacat = "tidak_ada"
+        # Jaringan pembanding yang perambatan baliknya benar, dilatih
+        # berdampingan dengan benih dan setelan yang sama persis. Hanya ada
+        # saat sebuah cacat menyala; tanpa pembanding, kurva galat jaringan
+        # yang rusak tidak berarti apa-apa — dan justru itulah yang mau
+        # diperlihatkan.
+        self.bayangan = None
+        self.riwayat_bayangan = []
+        self.tema = "sistem"
+
+        # Setelan dari alamat diterapkan **sebelum** jaringannya dibangun.
+        # Menerapkannya sesudah berarti membangun satu jaringan yang langsung
+        # dibuang, dan pada kumpulan cincin itu berarti membangkitkan empat
+        # puluh titik dua kali sebelum sebaris pun tergambar.
+        for nama, nilai in baca_tautan().items():
+            setattr(self, nama, nilai)
+
         self.bangun()
 
     def data(self):
@@ -197,8 +338,44 @@ class Keadaan:
         self.pesan = None
         ukuran = [2, 1] if self.tersembunyi == 0 else [2, self.tersembunyi, 1]
         self.jaringan = Jaringan(ukuran, aktivasi=self.aktivasi, benih=self.benih)
+        self.jaringan.atur_cacat(self.cacat)
         self.epoch = 0
         self.riwayat = [self.jaringan.galat(self.data())]
+
+        if self.cacat == "tidak_ada":
+            self.bayangan = None
+            self.riwayat_bayangan = []
+        else:
+            # Benih yang sama berarti bobot awal yang sama persis, jadi apa pun
+            # yang membedakan kedua kurva nanti hanyalah cacatnya — bukan
+            # keberuntungan titik awal.
+            self.bayangan = Jaringan(ukuran, aktivasi=self.aktivasi, benih=self.benih)
+            self.riwayat_bayangan = [self.bayangan.galat(self.data())]
+
+    def maju_satu_epoch(self):
+        """Satu langkah untuk jaringan utama, dan untuk bayangannya bila ada."""
+        data = self.data()
+        self.jaringan.langkah(
+            data, laju=self.laju, momentum=self.momentum, hitung_galat=False
+        )
+        if self.bayangan is not None:
+            self.bayangan.langkah(
+                data, laju=self.laju, momentum=self.momentum, hitung_galat=False
+            )
+        self.epoch += 1
+
+    def catat_riwayat(self):
+        """Menyimpan galat sekarang, dan memangkas riwayat bila sudah panjang."""
+        data = self.data()
+        self.riwayat.append(self.jaringan.galat(data))
+        if self.bayangan is not None:
+            self.riwayat_bayangan.append(self.bayangan.galat(data))
+        if len(self.riwayat) > BATAS_RIWAYAT:
+            # Kedua riwayat dipangkas dengan cara yang sama persis, kalau tidak
+            # keduanya tidak lagi sepadan indeks demi indeks dan kurvanya
+            # bergeser satu terhadap yang lain.
+            self.riwayat = self.riwayat[::2]
+            self.riwayat_bayangan = self.riwayat_bayangan[::2]
 
 
 K = Keadaan()
@@ -218,8 +395,13 @@ def gambar_galat():
     if len(riwayat) < 2:
         return s, "Belum ada langkah pelatihan."
 
-    terbesar = max(riwayat)
-    terkecil = min(riwayat)
+    bayangan = K.riwayat_bayangan if K.bayangan is not None else []
+    # Kedua kurva berbagi satu sumbu. Menskalakannya sendiri-sendiri akan
+    # membuat dua kurva yang nilainya jauh berbeda terlihat berimpit — persis
+    # kesimpulan terbalik dari yang ingin diperlihatkan.
+    semua = riwayat + bayangan
+    terbesar = max(semua)
+    terkecil = min(semua)
     if terbesar <= terkecil:
         terbesar = terkecil + 1e-9
 
@@ -239,10 +421,23 @@ def gambar_galat():
         t.textContent = ilmiah(nilai, 1)
         s <= t
 
-    d = []
-    for i, v in enumerate(riwayat):
-        d.append("%s %.2f %.2f" % ("M" if i == 0 else "L", px(i), py(v)))
-    s <= svg("path", d=" ".join(d), fill="none", stroke="var(--aksen)", stroke_width=2)
+    def jalur(nilai):
+        potong = []
+        for i, v in enumerate(nilai):
+            potong.append("%s %.2f %.2f" % ("M" if i == 0 else "L", px(i), py(v)))
+        return " ".join(potong)
+
+    if bayangan:
+        # Digambar lebih dulu supaya kurva yang rusak berada di atasnya.
+        s <= svg(
+            "path",
+            d=jalur(bayangan),
+            fill="none",
+            stroke="var(--tinta-3)",
+            stroke_width=2,
+            stroke_dasharray="5 4",
+        )
+    s <= svg("path", d=jalur(riwayat), fill="none", stroke="var(--aksen)", stroke_width=2)
 
     t = svg("text", x=pad_kiri, y=T - 8, font_size=9, fill="var(--tinta-3)")
     t.textContent = "epoch 0"
@@ -259,6 +454,13 @@ def gambar_galat():
         "perhatikan angka di sumbunya, bukan kemiringannya."
         % (arah, ilmiah(riwayat[0], 2), ilmiah(riwayat[-1], 2), K.epoch)
     )
+    if bayangan:
+        terang += (
+            " Garis putus-putus adalah jaringan pembanding dengan bobot awal yang "
+            "sama persis dan perambatan balik yang benar. Perhatikan berapa "
+            "banyak — atau berapa sedikit — keduanya berbeda: %s berbanding %s."
+            % (ilmiah(riwayat[-1], 2), ilmiah(bayangan[-1], 2))
+        )
     return s, terang
 
 
@@ -530,10 +732,43 @@ def gambar_ulang(berat=True):
     macet = diagnosa_macet(data, benar)
     if macet:
         kotak <= html.DIV(macet, Class="hasil__tafsir")
+
+    if K.cacat != "tidak_ada" and K.bayangan is not None:
+        label, _tempat, tertangkap, _p = CACAT[K.cacat]
+        galat_benar = K.bayangan.galat(data)
+        benar_bayangan = sum(
+            1 for x, t in data if round(K.bayangan.ramal(x)[0]) == int(t[0])
+        )
+        kotak <= html.DIV(
+            "Cacat menyala: %s. Pembanding yang benar ada di %s dengan %d dari %d "
+            "titik benar. %s"
+            % (
+                label,
+                ilmiah(galat_benar, 4),
+                benar_bayangan,
+                len(data),
+                (
+                    "Selisihnya sekecil itu — dan pemeriksa gradien tetap "
+                    "menangkapnya."
+                    if tertangkap
+                    else "Pemeriksa gradien tidak bisa menangkap yang ini."
+                ),
+            ),
+            Class="hasil__tafsir hasil__tafsir--cacat",
+        )
     ringkas <= kotak
 
     s_galat, t_galat = gambar_galat()
-    ringkas <= kartu("Kurva galat", gambar("Galat tiap epoch", t_galat, s_galat, 640, 200))
+    kunci_galat = None
+    if K.bayangan is not None:
+        kunci_galat = [
+            ("var(--aksen)", "jaringan yang disabotase"),
+            ("var(--tinta-3)", "pembanding yang benar (putus-putus)"),
+        ]
+    ringkas <= kartu(
+        "Kurva galat",
+        gambar("Galat tiap epoch", t_galat, s_galat, 640, 200, kunci_galat),
+    )
 
     if not berat:
         return
@@ -682,6 +917,56 @@ def tabel_ramalan(data):
 # ---------------------------------------------------------------------------
 
 
+def tafsir_pemeriksaan(hasil):
+    """Menghubungkan hasil pemeriksaan dengan cacat yang sedang menyala.
+
+    Tanpa ini, seorang pengunjung yang menyalakan cacat "bias beku" lalu
+    melihat LOLOS akan menyimpulkan pemeriksanya rusak. Yang benar justru
+    sebaliknya: pemeriksa gradien memang tidak bisa menangkapnya, dan
+    mengetahui batas sebuah alat adalah bagian dari memakainya.
+    """
+    if K.cacat == "tidak_ada":
+        if hasil["lolos"]:
+            return html.P(
+                "Tidak ada cacat yang menyala, dan pemeriksanya lolos — seperti "
+                "seharusnya. Untuk membuktikan pemeriksa ini benar-benar "
+                "memeriksa sesuatu, nyalakan salah satu cacat di panel Sabotase "
+                "lalu tekan tombol ini lagi.",
+                Class="catatan",
+            )
+        return html.P(
+            "Tidak ada cacat yang menyala, tetapi pemeriksanya gagal. Ini tidak "
+            "diharapkan terjadi; kalau Anda melihatnya, ada yang salah di mesin "
+            "ini dan bukan di setelan Anda.",
+            Class="galat",
+        )
+
+    label, _tempat, tertangkap, _penjelasan = CACAT[K.cacat]
+    if tertangkap and not hasil["lolos"]:
+        return html.P(
+            "Cacat \u201c%s\u201d menyala, dan pemeriksanya menangkapnya. Perhatikan "
+            "kurva galat di sebelah: ia tetap menurun. Tidak ada satu pun angka "
+            "di kurva itu yang bisa memberi tahu Anda hal yang baru saja "
+            "diberitahukan tabel ini." % label,
+            Class="catatan",
+        )
+    if not tertangkap and hasil["lolos"]:
+        return html.P(
+            "Cacat \u201c%s\u201d menyala, dan pemeriksanya LOLOS. Itu bukan kegagalan "
+            "pemeriksanya melainkan batasnya: ia memeriksa apakah turunannya "
+            "benar, bukan apakah turunannya dipakai. Cacat ini bekerja pada "
+            "langkah pembaruan, jauh setelah gradiennya selesai dihitung. "
+            "Alat yang batasnya tidak diketahui lebih berbahaya daripada tidak "
+            "punya alat." % label,
+            Class="catatan",
+        )
+    return html.P(
+        "Cacat \u201c%s\u201d menyala dan hasilnya tidak seperti yang diperkirakan "
+        "katalog cacatnya. Ini tidak diharapkan terjadi." % label,
+        Class="galat",
+    )
+
+
 def jalankan_periksa_gradien(_ev=None):
     wadah = document["gradien"]
     kosongkan(wadah)
@@ -711,6 +996,8 @@ def jalankan_periksa_gradien(_ev=None):
             "sering terlihat belajar, hanya berhenti di tempat yang keliru.",
             Class="catatan",
         )
+
+        wadah <= tafsir_pemeriksaan(hasil)
 
         bungkus = html.DIV(Class="gulir-x")
         t = html.TABLE()
@@ -1299,20 +1586,16 @@ def satu_potongan():
     if not K.melatih:
         return
     data = K.data()
-    langkah = K.jaringan.langkah
     mulai = window.performance.now()
     # Sekurang-kurangnya satu epoch tiap potongan, supaya pelatihan tetap maju
     # bahkan pada perangkat yang satu epochnya saja sudah melewati anggaran.
     while True:
-        langkah(data, laju=K.laju, momentum=K.momentum, hitung_galat=False)
-        K.epoch += 1
+        K.maju_satu_epoch()
         if window.performance.now() - mulai >= ANGGARAN_HITUNG_MS:
             break
 
-    galat = K.jaringan.galat(data)
-    K.riwayat.append(galat)
-    if len(K.riwayat) > BATAS_RIWAYAT:
-        K.riwayat = K.riwayat[::2]
+    K.catat_riwayat()
+    galat = K.riwayat[-1]
 
     if math.isnan(galat) or math.isinf(galat):
         K.melatih = False
@@ -1366,9 +1649,8 @@ def ulang(_ev):
 
 
 def satu_epoch(_ev):
-    K.jaringan.langkah(K.data(), laju=K.laju, momentum=K.momentum)
-    K.epoch += 1
-    K.riwayat.append(K.jaringan.galat(K.data()))
+    K.maju_satu_epoch()
+    K.catat_riwayat()
     gambar_ulang()
 
 
@@ -1425,32 +1707,38 @@ def gambar_kontrol():
 
     def set_dataset(v):
         K.dataset = v
+        tulis_tautan()
         K.bangun()
         gambar_kontrol()
         gambar_ulang()
 
     def set_aktivasi(v):
         K.aktivasi = v
+        tulis_tautan()
         K.bangun()
         gambar_kontrol()
         gambar_ulang()
 
     def set_tersembunyi(v):
         K.tersembunyi = int(v)
+        tulis_tautan()
         K.bangun()
         gambar_kontrol()
         gambar_ulang()
 
     def set_laju(v):
         K.laju = v
+        tulis_tautan()
         perbarui_peringatan()
 
     def set_momentum(v):
         K.momentum = v
+        tulis_tautan()
         perbarui_peringatan()
 
     def set_benih(v):
         K.benih = int(v)
+        tulis_tautan()
         K.bangun()
         gambar_ulang()
 
@@ -1491,6 +1779,44 @@ def gambar_kontrol():
         ),
     )
 
+    def set_cacat(v):
+        K.cacat = v
+        tulis_tautan()
+        K.bangun()
+        gambar_kontrol()
+        gambar_ulang()
+
+    kartu_cacat = kartu(
+        "Sabotase",
+        html.P(
+            "Halaman ini menyatakan bahwa jaringan yang gradiennya salah tetap "
+            "sering terlihat belajar. Jangan percayai itu — nyalakan salah "
+            "satu cacat di bawah, latih, lalu perhatikan kurva galatnya.",
+            Class="catatan",
+        ),
+        tombol_pilihan(
+            "Cacat perambatan balik",
+            [(k, v[0]) for k, v in CACAT.items()],
+            K.cacat,
+            set_cacat,
+        ),
+    )
+    label, tempat, tertangkap, penjelasan = CACAT[K.cacat]
+    kartu_cacat <= html.P(penjelasan, Class="catatan")
+    if K.cacat != "tidak_ada":
+        kartu_cacat <= html.P(
+            "Pemeriksa gradien %s cacat ini."
+            % ("MENANGKAP" if tertangkap else "TIDAK BISA menangkap"),
+            Class="lencana lencana--%s" % ("benar" if tertangkap else "salah"),
+        )
+        kartu_cacat <= html.P(
+            "Sebuah jaringan pembanding dengan bobot awal yang sama persis dan "
+            "perambatan balik yang benar ikut dilatih berdampingan. Ia muncul "
+            "sebagai garis putus-putus di kurva galat.",
+            Class="catatan",
+        )
+    kontrol <= kartu_cacat
+
     kontrol <= kartu(
         "Pelatihan",
         bidang_geser("Laju belajar", 0.01, 5.0, 0.01, K.laju, None, set_laju),
@@ -1501,6 +1827,8 @@ def gambar_kontrol():
         ),
         html.DIV(id="peringatan"),
     )
+
+    kontrol <= kartu_berbagi()
 
     baris = html.DIV(Class="baris")
     b_mulai = html.BUTTON("Latih", Class="tombol tombol--utama", type="button", id="mulai")
@@ -1525,6 +1853,33 @@ def gambar_kontrol():
 #: keduanya berhenti di keluaran tetap. Batasnya bergantung aktivasi, jadi
 #: angka ini disebut ambang perhatian, bukan ambang kegagalan.
 AMBANG_LAJU = 100.0
+
+
+def kartu_berbagi():
+    """Tautan yang bisa dibagikan, dan pemilih tema.
+
+    Keduanya di satu kartu karena keduanya menjawab pertanyaan yang sama:
+    bagaimana keadaan halaman ini bertahan di luar sesi sekarang.
+    """
+    k = kartu("Bagikan dan tampilan")
+    k <= html.P(
+        "Alamat di bilah alamat selalu mencerminkan setelan sekarang. Siapa pun "
+        "yang membukanya akan mendapat jaringan yang sama persis \u2014 benih yang "
+        "sama berarti bobot awal yang sama, dan pelatihan yang sama bisa diulang. "
+        "Itu bukan kenyamanan tambahan melainkan syarat: hasil yang tidak bisa "
+        "diulang tidak bisa diperiksa siapa pun.",
+        Class="catatan",
+    )
+    b = html.BUTTON("Salin tautan setelan ini", Class="tombol", type="button")
+    b.bind("click", salin_tautan)
+    k <= b
+    k <= html.DIV(id="kabar-tautan", Class="kabar-wadah")
+
+    def set_tema(v):
+        pasang_tema(v)
+
+    k <= tombol_pilihan("Tema", TEMA, K.tema, set_tema)
+    return k
 
 
 def perbarui_peringatan():
@@ -1562,10 +1917,16 @@ def mulai():
     # ``hidden`` yang tetap terbaca pembaca layar sebagai "tersembunyi" —
     # tampilan dan makna jadi bertentangan.
     document["aplikasi"].removeAttribute("hidden")
+    # Tema dipasang sebelum apa pun tergambar, supaya kanvas membaca warna yang
+    # benar sejak gambar pertama alih-alih berkedip sekali. Kanvas menyimpan
+    # piksel; SVG di sekelilingnya mengikuti CSS dengan sendirinya.
+    pasang_tema(tema_tersimpan(), gambar_lagi=False)
+    tulis_tautan()
     gambar_kontrol()
     gambar_ulang()
     document["periksa"].bind("click", jalankan_periksa_gradien)
     document["jalankan-konformansi"].bind("click", jalankan_konformansi)
+    window.addEventListener("hashchange", terapkan_tautan)
     # Angka ini dihitung, bukan diketik: kalau modul fx berubah dan pola bitnya
     # bergeser, teks di halaman ikut bergeser dan perbedaannya terlihat.
     document["bukti-bit"].text = fx.ke_hex(0.1)

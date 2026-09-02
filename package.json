@@ -11,8 +11,9 @@
     "test": "python -m unittest discover -s py/uji -p \"test_*.py\"",
     "conform": "python conformance/jalankan.py",
     "budget": "node scripts/budget.mjs",
-    "audit:all": "npm run test && npm run conform && npm run build && npm run budget && npm run kemasan",
-    "kemasan": "node scripts/periksa-kemasan.mjs"
+    "audit:all": "npm run test && npm run conform && npm run typecheck && npm run build && npm run budget && npm run kemasan",
+    "kemasan": "node scripts/periksa-kemasan.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "author": "Daniel Hutajulu (.Deckyx)",
   "license": "MIT",
@@ -22,7 +23,9 @@
   },
   "homepage": "https://xyb3rpunq.github.io/neuronusa/",
   "devDependencies": {
+    "@types/node": "^26.4.1",
     "brython": "^3.14.3",
+    "typescript": "^7.0.2",
     "vite": "^8.2.2"
   }
 }

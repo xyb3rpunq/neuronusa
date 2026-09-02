@@ -95,13 +95,26 @@ const vfs = {};
 // kode barunya terbit.
 let capWaktu = 0;
 
+const vfsMalas = {};
+
 function tambah(namaModul, jalur, paket) {
   const sumber = readFileSync(jalur, "utf8");
   capWaktu = Math.max(capWaktu, Math.trunc(statSync(jalur).mtimeMs));
   const entri = [".py", sumber, bacaKebergantungan(sumber)];
   if (paket) entri.push(1);
-  vfs[namaModul] = entri;
+  (MODUL_MALAS.has(namaModul) ? vfsMalas : vfs)[namaModul] = entri;
 }
+
+/**
+ * Modul yang hanya dibutuhkan tombol konformansi.
+ *
+ * Ikut ke berkas yang malas bersama vektornya, bukan ke muatan pertama.
+ * Aturannya sederhana dan bisa dinyatakan dalam satu kalimat: **berkas yang
+ * malas berisi tepat apa yang dibutuhkan tombol konformansi, dan tidak ada
+ * yang lain.** Pemeriksa gradien, pelatihan, dan seluruh gambar tidak pernah
+ * menyentuhnya.
+ */
+const MODUL_MALAS = new Set(["nusa.konform"]);
 
 const dirNusa = join(AKAR, "py", PAKET);
 tambah(PAKET, join(dirNusa, "__init__.py"), true);
@@ -182,6 +195,7 @@ const kepalaVektor = [
 // sebuah tombol yang mungkin tidak pernah ia tekan.
 const vfsVektor = {
   $timestamp: capWaktu,
+  ...vfsMalas,
   "nusa.vektor": [".py", kepalaVektor + "DATA = " + JSON.stringify(vektor) + LF, []],
 };
 
@@ -227,5 +241,6 @@ const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
 console.log(
   `Mesin Python dikemas: ${Object.keys(vfs).length} modul → ` +
     `vendor/nusa_vfs.js (${kb(keluaran.length)}); ` +
+    `${Object.keys(vfsMalas).length} modul malas dan ` +
     `${Object.keys(vektor).length} berkas vektor → vendor/vektor_vfs.js.`,
 );

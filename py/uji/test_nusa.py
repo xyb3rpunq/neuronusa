@@ -19,7 +19,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from nusa import fx, inti, jaringan, konform  # noqa: E402
+from nusa import fx, inti, jaringan, konform, tautan  # noqa: E402
 
 VEKTOR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "..", "conformance", "vectors"
@@ -508,6 +508,217 @@ class UjiCaraGagal(unittest.TestCase):
         self.assertLess(j.galat(data), 1e-3)
 
 
+class UjiCacatYangBisaDinyalakan(unittest.TestCase):
+    """Menahan seluruh klaim yang dibuat halaman tentang cacat perambatan balik.
+
+    Setiap kalimat di antarmuka tentang cacat ini adalah pernyataan yang bisa
+    salah, dan sebagian memang pernah salah. Kelas ini memeriksa keempatnya
+    dengan menjalankannya, bukan dengan mempercayainya.
+
+    Angka-angkanya diukur, bukan dikarang. Yang paling penting: cacat
+    ``tanda_terbalik`` pada XOR dengan benih 7 berakhir di galat 4,24e-05 —
+    **lebih rendah** daripada perambatan balik yang benar, yang berakhir di
+    4,34e-05. Itu bukan kebetulan yang lucu melainkan seluruh alasan halaman
+    ini ada: kurva galat tidak membuktikan apa pun.
+    """
+
+    EPOCH = 3000
+    LAJU = 0.5
+    MOMENTUM = 0.9
+
+    def latih(self, cacat, data=None, tersembunyi=4, benih=7):
+        data = data if data is not None else jaringan.data_xor()
+        j = jaringan.Jaringan([2, tersembunyi, 1], aktivasi="tanh", benih=benih)
+        j.atur_cacat(cacat)
+        awal = j.galat(data)
+        for _ in range(self.EPOCH):
+            j.langkah(data, laju=self.LAJU, momentum=self.MOMENTUM, hitung_galat=False)
+        return j, data, awal, j.galat(data)
+
+    def test_katalog_lengkap_dan_konsisten(self):
+        self.assertIn("tidak_ada", jaringan.CACAT)
+        for nama, (label, tempat, tertangkap, penjelasan) in jaringan.CACAT.items():
+            self.assertTrue(label and isinstance(label, str), nama)
+            self.assertTrue(penjelasan and len(penjelasan) > 40, nama)
+            if nama == "tidak_ada":
+                self.assertIsNone(tempat)
+                self.assertIsNone(tertangkap)
+            else:
+                self.assertIn(tempat, ("gradien", "langkah"), nama)
+                self.assertIsInstance(tertangkap, bool)
+                # Klaim yang menentukan: cacat pada gradien tertangkap
+                # pemeriksa gradien, cacat pada pembaruan tidak. Uji di bawah
+                # membuktikan keduanya dengan menjalankannya.
+                self.assertEqual(tertangkap, tempat == "gradien", nama)
+
+    def test_nama_cacat_yang_tidak_dikenal_ditolak(self):
+        j = jaringan.Jaringan([2, 3, 1])
+        with self.assertRaises(ValueError):
+            j.atur_cacat("tidak-pernah-ada")
+        # Yang lama harus tetap terpasang, bukan diam-diam terlepas.
+        self.assertEqual(j.cacat, "tidak_ada")
+
+    def test_pemeriksa_gradien_menangkap_yang_seharusnya_tertangkap(self):
+        data = jaringan.data_xor()
+        for nama, (_label, tempat, tertangkap, _p) in jaringan.CACAT.items():
+            if nama == "tidak_ada":
+                continue
+            j = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=7)
+            j.atur_cacat(nama)
+            # Diperiksa setelah beberapa langkah, bukan pada bobot awal:
+            # sebagian gradien awal cukup kecil untuk membuat galat relatif
+            # apa pun terlihat besar, dan uji yang lolos karena itu tidak
+            # memeriksa apa yang dikiranya diperiksa.
+            for _ in range(50):
+                j.langkah(data, laju=0.5, momentum=0.9, hitung_galat=False)
+            hasil = j.periksa_gradien(data)
+            self.assertEqual(
+                hasil["lolos"],
+                not tertangkap,
+                "cacat %r: diharapkan pemeriksa gradien %s, ternyata %s "
+                "(galat relatif terburuk %.3e)"
+                % (
+                    nama,
+                    "GAGAL" if tertangkap else "LOLOS",
+                    "LOLOS" if hasil["lolos"] else "GAGAL",
+                    hasil["terburuk"],
+                ),
+            )
+
+    def test_bias_beku_tidak_bisa_ditangkap_pemeriksa_gradien(self):
+        """Batas alatnya, diuji langsung.
+
+        Pemeriksa gradien memeriksa apakah turunannya benar, bukan apakah
+        turunannya dipakai. Uji ini memastikan halaman tidak pernah menjanjikan
+        yang pertama sebagai jaminan atas yang kedua.
+        """
+        data = jaringan.data_xor()
+        j = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=7)
+        j.atur_cacat("bias_beku")
+        for _ in range(50):
+            j.langkah(data, laju=0.5, momentum=0.9, hitung_galat=False)
+        self.assertTrue(j.periksa_gradien(data)["lolos"])
+        # Dan buktikan cacatnya memang terpasang: biasnya tidak bergerak.
+        for lap in j.bias:
+            for b in lap:
+                self.assertEqual(b, 0.0)
+
+    def test_setiap_cacat_tetap_terlihat_belajar(self):
+        """Klaim inti halaman ini, diuji pada keempat cacat.
+
+        Galatnya wajib **menurun** pada setiap cacat. Kalau ada yang tidak,
+        kalimat "jaringan yang gradiennya salah tetap sering belajar" tidak
+        berlaku untuk cacat itu, dan halaman tidak boleh memakainya sebagai
+        contoh.
+        """
+        for nama in jaringan.CACAT:
+            for label, data, tersembunyi in (
+                ("XOR", jaringan.data_xor(), 4),
+                ("cincin", jaringan.data_lingkaran(40, benih=7), 6),
+            ):
+                _j, _d, awal, akhir = self.latih(nama, data, tersembunyi)
+                self.assertTrue(math.isfinite(akhir), "%s/%s" % (nama, label))
+                self.assertLess(
+                    akhir,
+                    awal,
+                    "cacat %r pada %s tidak membuat galatnya menurun sama "
+                    "sekali (%.3e → %.3e); halaman tidak boleh memakainya "
+                    "sebagai contoh 'tetap terlihat belajar'"
+                    % (nama, label, awal, akhir),
+                )
+
+    def test_tanda_terbalik_tidak_bisa_dibedakan_dari_kurva_galatnya(self):
+        """Kasus yang paling menohok, dikunci angkanya.
+
+        Perambatan balik yang salah tandanya pada satu bobot berakhir dengan
+        galat yang **lebih rendah** daripada yang benar, dan menjawab keempat
+        titik XOR dengan benar. Tidak ada satu pun angka di kurva galat yang
+        bisa membedakan keduanya. Yang bisa hanya pemeriksa gradien.
+        """
+        _jb, data, _a, benar_akhir = self.latih("tidak_ada")
+        _jr, _d, _a2, rusak_akhir = self.latih("tanda_terbalik")
+
+        self.assertLess(benar_akhir, 1e-4)
+        self.assertLess(rusak_akhir, 1e-4)
+        # Keduanya di bawah ambang yang sama; besarannya tidak terbedakan.
+        self.assertLess(abs(math.log10(rusak_akhir) - math.log10(benar_akhir)), 0.5)
+
+        jr = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=7)
+        jr.atur_cacat("tanda_terbalik")
+        for _ in range(self.EPOCH):
+            jr.langkah(data, laju=self.LAJU, momentum=self.MOMENTUM, hitung_galat=False)
+        benar = sum(1 for x, t in data if round(jr.ramal(x)[0]) == int(t[0]))
+        self.assertEqual(benar, 4, "jaringan yang gradiennya salah tetap menjawab benar")
+        self.assertFalse(jr.periksa_gradien(data)["lolos"])
+
+    def test_faktor_dua_justru_terlihat_lebih_baik(self):
+        """Cacat yang menyamar sebagai perbaikan.
+
+        Menggandakan seluruh gradien setara dengan menggandakan laju belajar,
+        dan pada masalah sekecil ini itu mempercepat. Galatnya berakhir lebih
+        rendah daripada perambatan balik yang benar — dan tetap salah.
+        """
+        _jb, _d, _a, benar_akhir = self.latih("tidak_ada")
+        _jr, _d2, _a2, rusak_akhir = self.latih("faktor_dua")
+        self.assertLess(rusak_akhir, benar_akhir)
+
+    def test_turunan_hilang_berhenti_di_tempat_yang_keliru(self):
+        """Cacat yang berhenti sebelum selesai, tetapi tetap menurun.
+
+        Inilah bentuk paling murni dari kalimat "lebih lambat dan berhenti di
+        tempat yang keliru".
+        """
+        data = jaringan.data_xor()
+        j, _d, awal, akhir = self.latih("turunan_hilang")
+        self.assertLess(akhir, awal)
+        benar = sum(1 for x, t in data if round(j.ramal(x)[0]) == int(t[0]))
+        self.assertLess(benar, 4, "diharapkan tidak menyelesaikan XOR")
+
+    def test_cacat_tidak_mengubah_perambatan_maju(self):
+        """Cacatnya hanya di jalur mundur; ramalannya harus utuh.
+
+        Kalau perambatan majunya ikut berubah, yang diperlihatkan bukan lagi
+        "gradien yang salah pada jaringan yang sama" melainkan jaringan yang
+        berbeda — dan perbandingannya kehilangan makna.
+        """
+        for nama in jaringan.CACAT:
+            a = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=21)
+            b = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=21)
+            b.atur_cacat(nama)
+            for x in ([0.0, 0.0], [0.3, 0.9], [1.0, 1.0]):
+                self.assertEqual(
+                    fx.bits(a.ramal(x)[0]), fx.bits(b.ramal(x)[0]), "%s %r" % (nama, x)
+                )
+
+    def test_telusuri_tetap_sepadan_dengan_gradien_di_setiap_cacat(self):
+        """Angka yang ditampilkan wajib angka yang dipakai — juga saat rusak.
+
+        Tampilan langkah-demi-langkah adalah tempat pengunjung melihat *di
+        mana* cacatnya bekerja. Kalau jejaknya memakai jalur yang berbeda dari
+        gradien sungguhan, yang diperlihatkan bukan cacatnya melainkan cacat
+        lain.
+        """
+        for nama in jaringan.CACAT:
+            j = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=11)
+            j.atur_cacat(nama)
+            for x, t in jaringan.data_xor():
+                jejak = j.telusuri(x, t)
+                gw, gb = j.gradien([(x, t)])
+                for lap in range(len(gw)):
+                    for a in range(len(gw[lap])):
+                        self.assertEqual(
+                            fx.bits(gb[lap][a]),
+                            fx.bits(jejak["gradien_b"][lap][a]),
+                            "%s bias L%d n%d" % (nama, lap, a),
+                        )
+                        for b in range(len(gw[lap][a])):
+                            self.assertEqual(
+                                fx.bits(gw[lap][a][b]),
+                                fx.bits(jejak["gradien_w"][lap][a][b]),
+                                "%s bobot L%d %d<-%d" % (nama, lap, a, b),
+                            )
+
+
 class UjiTelusur(unittest.TestCase):
     """Menahan jejak langkah-demi-langkah tetap sepadan dengan pelatihannya.
 
@@ -631,6 +842,122 @@ class UjiLangkahTanpaGalat(unittest.TestCase):
                     self.assertEqual(
                         fx.bits(a.bobot[lap][j][k]), fx.bits(b.bobot[lap][j][k])
                     )
+
+
+class UjiTautan(unittest.TestCase):
+    """Memeriksa penyandi setelan yang isinya datang dari luar.
+
+    Setiap nilai di sebuah alamat ditulis orang lain. Yang tidak diperiksa
+    akan sampai ke :class:`Jaringan` apa adanya, dan kegagalannya terjadi di
+    peramban pembaca — bukan di mesin pengirim.
+    """
+
+    def test_bolak_balik_utuh(self):
+        setelan = {
+            "dataset": "lingkaran",
+            "tersembunyi": 0,
+            "aktivasi": "sigmoid",
+            "benih": 42,
+            "laju": 0.2,
+            "momentum": 0.5,
+            "cacat": "turunan_hilang",
+        }
+        kembali = tautan.baca("#" + tautan.tulis(setelan))
+        self.assertEqual(kembali, setelan)
+
+    def test_pecahan_ditulis_ringkas_dan_terbaca_kembali(self):
+        """Alamatnya harus pendek, dan tetap membawa nilai yang sama.
+
+        Bentuk ilmiah dilarang muncul: ``l=5e-01`` sah secara teknis tetapi
+        membuat alamat yang tidak bisa dibaca sekilas oleh orang yang
+        menerimanya, dan seluruh gunanya tautan ini adalah bisa dibaca.
+        """
+        for nama, nilai in (
+            ("laju", 0.5),
+            ("laju", 0.01),
+            ("laju", 5.0),
+            ("laju", 1.0),
+            ("laju", 0.25),
+            ("momentum", 0.0),
+            ("momentum", 0.9),
+            ("momentum", 0.99),
+        ):
+            teks = tautan.tulis({nama: nilai})
+            self.assertNotIn("e", teks, teks)
+            self.assertLessEqual(len(teks), 8, teks)
+            self.assertEqual(tautan.baca(teks), {nama: nilai}, teks)
+
+    def test_menolak_nilai_di_luar_rentang(self):
+        for tanda, nama in (
+            ("h=9", "tersembunyi"),
+            ("h=-1", "tersembunyi"),
+            ("s=0", "benih"),
+            ("s=201", "benih"),
+            ("l=5.01", "laju"),
+            ("l=0", "laju"),
+            ("m=1", "momentum"),
+            ("m=-0.1", "momentum"),
+        ):
+            self.assertNotIn(nama, tautan.baca(tanda), tanda)
+
+    def test_menolak_nilai_yang_tidak_dikenal(self):
+        for tanda in ("d=segitiga", "a=selu", "c=tidak-pernah-ada"):
+            self.assertEqual(tautan.baca(tanda), {}, tanda)
+
+    def test_menolak_bukan_angka(self):
+        for tanda in ("h=empat", "s=", "l=abc", "m=NaN", "l=nan", "m=inf", "l=-inf"):
+            self.assertEqual(tautan.baca(tanda), {}, tanda)
+
+    def test_nan_dan_takhingga_ditolak_walau_perbandingannya_aneh(self):
+        """NaN gagal setiap perbandingan, termasuk yang dipakai menolaknya.
+
+        Pemeriksa yang ditulis sebagai ``if v < kecil or v > besar: tolak``
+        akan meloloskan NaN, karena kedua perbandingannya bernilai salah.
+        Satu NaN yang lolos merusak seluruh bobot dalam satu langkah
+        pelatihan.
+        """
+        for teks in ("nan", "NaN", "-nan", "inf", "-inf", "Infinity"):
+            self.assertIsNone(tautan.PEMERIKSA["laju"](teks), teks)
+            self.assertIsNone(tautan.PEMERIKSA["momentum"](teks), teks)
+
+    def test_bagian_yang_rusak_tidak_membuang_bagian_yang_baik(self):
+        hasil = tautan.baca("#d=xor&h=99&a=relu&z=1&rusak&s=12")
+        self.assertEqual(
+            hasil, {"dataset": "xor", "aktivasi": "relu", "benih": 12}
+        )
+
+    def test_tanda_kosong_menghasilkan_kamus_kosong(self):
+        for tanda in ("", "#", None):
+            self.assertEqual(tautan.baca(tanda), {})
+
+    def test_kunci_pendek_unik_dan_lengkap(self):
+        nama = [n for n, _k in tautan.KUNCI]
+        kunci = [k for _n, k in tautan.KUNCI]
+        self.assertEqual(len(set(kunci)), len(kunci), "kunci pendek bertabrakan")
+        self.assertEqual(set(nama), set(tautan.PEMERIKSA), "pemeriksa tidak lengkap")
+
+    def test_batas_sepadan_dengan_yang_bisa_dipakai_jaringan(self):
+        """Batas di tautan harus benar-benar bisa dibangun jadi jaringan.
+
+        Kalau batasnya lebih longgar daripada yang sanggup dibangun, sebuah
+        tautan yang lolos pemeriksaan akan tetap merusak halaman saat dibuka.
+        """
+        for tersembunyi in (
+            tautan.BATAS["tersembunyi"][0],
+            tautan.BATAS["tersembunyi"][1],
+        ):
+            ukuran = [2, 1] if tersembunyi == 0 else [2, tersembunyi, 1]
+            for aktivasi in jaringan.AKTIVASI:
+                j = jaringan.Jaringan(ukuran, aktivasi=aktivasi, benih=1)
+                for cacat in jaringan.CACAT:
+                    j.atur_cacat(cacat)
+                    j.langkah(
+                        jaringan.data_xor(),
+                        laju=tautan.BATAS["laju"][1],
+                        momentum=tautan.BATAS["momentum"][1],
+                        hitung_galat=False,
+                    )
+                self.assertTrue(math.isfinite(j.galat(jaringan.data_xor())))
 
 
 class UjiKonformansiBertahap(unittest.TestCase):
