@@ -1186,22 +1186,64 @@ def tampilkan_konformansi(laporan, lama_ms):
         bungkus2 <= t2
         wadah <= bungkus2
 
-    # Selisih ULP yang bukan nol dijelaskan, bukan disembunyikan. Angka ini
-    # memang berbeda antara CPython dan Brython — dan pengunjung yang
-    # membandingkan tabel ini dengan keluaran CI berhak tahu kenapa, alih-alih
-    # menyimpulkan salah satunya rusak.
-    tertinggi = max([b.ulp_maks for b in laporan.berkas] or [0])
-    if tertinggi > 0:
+    # Selisih ULP yang bukan nol dijelaskan, bukan disembunyikan — dan
+    # dijelaskan **terpisah menurut tingkatnya**, karena angka yang sama
+    # berarti hal yang berbeda di tingkat yang berbeda.
+    #
+    # Bentuk pertama catatan ini menyatakan seluruh selisih "jauh di dalam
+    # batas 4 ULP". Itu salah, dan situs yang sudah terbit yang
+    # membuktikannya: ml_gain.tsv di peramban menunjukkan 64 ULP. Ia tetap
+    # lolos, karena toleransi CancellingDifference memang tidak diukur pada
+    # hasilnya. Menyebut 64 sebagai "di dalam batas 4" adalah menutupi
+    # perbedaan yang justru paling menarik di seluruh tabel ini.
+    ulp_bit = max([b.ulp_maks for b in laporan.berkas if b.tingkat == "BitExact"] or [0])
+    ulp_dekat = max(
+        [b.ulp_maks for b in laporan.berkas if b.tingkat.startswith("NearlyEqual")] or [0]
+    )
+    ulp_batal = max(
+        [
+            b.ulp_maks
+            for b in laporan.berkas
+            if b.tingkat.startswith("CancellingDifference")
+        ]
+        or [0]
+    )
+
+    if ulp_bit == 0 and (ulp_dekat or ulp_batal):
         wadah <= html.P(
-            "Perhatikan kolom ULP maks: sebagian bukan nol. Itu bukan kesalahan "
-            "dan bukan kebetulan. IEEE-754 mewajibkan penjumlahan, pengurangan, "
-            "perkalian, pembagian, dan akar kuadrat dibulatkan dengan benar — "
-            "tetapi tidak exp, log, maupun pow. Python di peramban menghitung "
-            "ketiganya lewat pustaka matematika JavaScript, yang menempuh jalan "
-            "berbeda dari pustaka C yang dipakai CPython di CI. Selisih "
-            "terbesarnya di sini %d ULP, jauh di dalam batas 4 ULP yang memang "
-            "sudah dinyatakan di muka untuk berkas-berkas itu — dan seluruh "
-            "berkas BitExact tetap nol." % tertinggi,
+            "Perhatikan kolom ULP maks. Seluruh berkas BitExact nol \u2014 di situ "
+            "memang tidak boleh ada selisih sedikit pun, dan tidak ada. Yang "
+            "bukan nol semuanya jatuh di berkas yang tingkat keterbandingannya "
+            "sudah menyatakan kelonggaran di muka.",
+            Class="catatan",
+        )
+
+    if ulp_dekat:
+        wadah <= html.P(
+            "Berkas NearlyEqual(4) meleset sampai %d ULP. IEEE-754 mewajibkan "
+            "penjumlahan, pengurangan, perkalian, pembagian, dan akar kuadrat "
+            "dibulatkan dengan benar \u2014 tetapi tidak exp, log, maupun pow. Python "
+            "di peramban menghitung ketiganya lewat pustaka matematika "
+            "JavaScript, yang menempuh jalan berbeda dari pustaka C yang dipakai "
+            "CPython di CI. Di CI angka ini nol; di sini tidak. Keduanya benar."
+            % ulp_dekat,
+            Class="catatan",
+        )
+
+    if ulp_batal:
+        wadah <= html.P(
+            "Dan perhatikan ml_gain.tsv: %d ULP, jauh di luar empat \u2014 tetapi "
+            "tetap cocok. Bukan kelonggaran yang dilebarkan diam-diam. "
+            "CancellingDifference mengukur toleransinya pada skala masukan, "
+            "bukan pada hasil. Perolehan informasi adalah selisih dua entropi "
+            "yang hampir sama besar; pengurangan seperti itu membuang digit "
+            "berarti di depan dan memperbesar galat relatifnya berlipat-lipat, "
+            "sampai puluhan kali. Menuntut ketepatan pada hasilnya adalah "
+            "menuntut sesuatu yang tidak dimiliki angka mana pun di sana. Angka "
+            "%d inilah pembalikan yang paling jelas: di CPython ia nol, dan "
+            "tingkat keterbandingan ini yang membuat perbedaannya terlihat "
+            "sebagai keterangan alih-alih sebagai kegagalan."
+            % (ulp_batal, ulp_batal),
             Class="catatan",
         )
 

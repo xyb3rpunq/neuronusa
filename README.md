@@ -146,12 +146,40 @@ Keduanya ditemukan dengan menjalankan konformansi di dalam peramban. CI
 menjalankan CPython; pengunjung menjalankan Brython. Keduanya Python, dan
 keduanya tidak sama.
 
-Hasil di peramban juga memperlihatkan sesuatu yang jujur: `fuzzy_transcendental.tsv`
-menunjukkan **ULP maks 2**, bukan 0 seperti di CPython. Brython menghitung
-`exp` dan `log` lewat pustaka matematika JavaScript, yang menempuh jalan
-berbeda dari pustaka C. Selisihnya jauh di dalam batas 4 ULP yang sudah
-dinyatakan di muka untuk berkas itu — dan seluruh berkas `BitExact` tetap nol.
-Tingkat `NearlyEqual(4)` ternyata memang bekerja, bukan hiasan.
+### Apa yang terlihat kalau tombolnya benar-benar ditekan
+
+Hasil di peramban berbeda dari hasil CI, dan perbedaannya persis yang
+diramalkan rancangannya:
+
+| berkas | tingkat | ULP di CPython | ULP di Brython |
+|---|---|---|---|
+| seluruh berkas `BitExact` | `BitExact` | 0 | **0** |
+| `fuzzy_transcendental.tsv` | `NearlyEqual(4)` | 0 | **2** |
+| `ml_entropy.tsv` | `NearlyEqual(4)` | 0 | **2** |
+| `ml_gain.tsv` | `CancellingDifference(4)` | 0 | **64** |
+
+Seluruh berkas `BitExact` tetap nol — di situ memang tidak boleh ada selisih
+sedikit pun. Yang bukan nol semuanya jatuh di berkas yang tingkatnya sudah
+menyatakan kelonggaran di muka.
+
+Dua ULP pada berkas transendental datang dari `exp` dan `log`: Brython
+menghitungnya lewat pustaka matematika JavaScript, CPython lewat pustaka C,
+dan IEEE-754 tidak mewajibkan keduanya dibulatkan dengan benar. Keduanya
+benar; keduanya berbeda.
+
+**Enam puluh empat ULP pada `ml_gain.tsv`** adalah pembalikan yang paling
+jelas — dan ia tetap cocok. Bukan karena kelonggarannya dilebarkan diam-diam,
+melainkan karena `CancellingDifference` mengukur toleransinya pada **skala
+masukan**, bukan pada hasil. Perolehan informasi adalah selisih dua entropi
+yang hampir sama besar; pengurangan seperti itu membuang digit berarti di
+depan dan memperbesar galat relatifnya sampai puluhan kali. Menuntut
+ketepatan pada hasilnya adalah menuntut sesuatu yang tidak dimiliki angka mana
+pun di sana.
+
+Angka 64 itu tidak pernah muncul di CI, karena di CPython ia nol. Ia hanya
+terlihat kalau tombolnya benar-benar ditekan — dan tingkat keterbandingan yang
+dirancang untuknya membuat perbedaan itu tampil sebagai keterangan, bukan
+sebagai kegagalan.
 
 ---
 
