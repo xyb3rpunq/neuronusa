@@ -187,13 +187,16 @@ class Ketidakcocokan:
 class Laporan:
     """Hasil seluruh pemeriksaan."""
 
-    __slots__ = ("berkas", "ketidakcocokan", "total", "galat_muat")
+    __slots__ = ("berkas", "ketidakcocokan", "total", "galat_muat", "pancar")
 
     def __init__(self):
         self.berkas = []
         self.ketidakcocokan = []
         self.total = 0
         self.galat_muat = []
+        #: Pola bit tiap pernyataan, hanya terisi bila mode pancar menyala.
+        #: Lihat :class:`Bertahap`.
+        self.pancar = []
 
     @property
     def total_gagal(self):
@@ -211,6 +214,29 @@ class Laporan:
 #: Paling banyak ketidakcocokan yang disimpan, supaya laporan gagal tidak
 #: berubah menjadi ribuan baris yang tidak dibaca siapa pun.
 BATAS_KETIDAKCOCOKAN = 25
+
+#: Nama kolom hasil di berkas vektornya, menurut urutan pelaporannya.
+#:
+#: Dipakai memancarkan pola bit untuk halaman "Enam bahasa, satu angka" di AI
+#: ATLAS, yang memasangkan hasil tiap bahasa lewat kunci (berkas, baris,
+#: kolom).
+#:
+#: Urutannya, bukan nama yang diserahkan tiap pemeriksa. Sebuah baris
+#: ``rng.tsv`` selalu melaporkan bilangan bulatnya lebih dulu dan pecahannya
+#: kemudian; menambahkan argumen ke seluruh cabang :func:`_periksa_baris`
+#: hanya untuk menyebutkan urutan yang sudah tetap itu berarti sembilan tempat
+#: baru yang bisa salah tulis.
+KOLOM = {
+    "fx.tsv": ("hex",),
+    "rng.tsv": ("next_u64_hex", "next_f64_hex"),
+    "bayes.tsv": ("evidence_hex", "posterior_hex", "likelihood_ratio_hex"),
+    "certainty.tsv": ("result_hex",),
+    "fuzzy_linear.tsv": ("degree_hex",),
+    "fuzzy_transcendental.tsv": ("degree_hex",),
+    "ml_exact.tsv": ("result_hex",),
+    "ml_entropy.tsv": ("result_hex",),
+    "ml_gain.tsv": ("result_hex",),
+}
 
 
 class Bertahap:
@@ -231,8 +257,13 @@ class Bertahap:
     yang diminta.
     """
 
-    def __init__(self, muat, berkas=None):
+    def __init__(self, muat, berkas=None, pancar=False):
         self.laporan = Laporan()
+        # ``pancar`` membuat pola bit tiap pernyataan ikut dikumpulkan di
+        # ``laporan.pancar``. Angkanya sama persis dengan yang dibandingkan --
+        # nilai yang sama, dari panggilan yang sama -- sehingga tidak mungkin
+        # halaman menampilkan pola bit yang tidak pernah diperiksa siapa pun.
+        self._pancar = pancar
         self._muat = muat
         # ``berkas is None`` dan ``berkas == []`` sengaja dibedakan. Yang
         # pertama berarti "seluruhnya", yang kedua berarti "tidak satu pun" —
@@ -327,8 +358,28 @@ class Bertahap:
             # akan menunjuk berkas yang sedang aktif saat ia dipanggil, bukan
             # saat ia dibuat — dan setiap berkas akan dinilai dengan tingkat
             # keterbandingan berkas terakhir.
+            pancar = self.laporan.pancar if self._pancar else None
+            urut = {"k": 0}
+            kolom = KOLOM.get(nama, ())
+
+            def catat(dapat_hex, konteks, nomor):
+                urut["k"] += 1
+                pancar.append(
+                    {
+                        "berkas": nama,
+                        "baris": nomor,
+                        "kolom": (
+                            kolom[urut["k"] - 1] if urut["k"] <= len(kolom) else "result_hex"
+                        ),
+                        "hasil_hex": dapat_hex,
+                        "konteks": konteks,
+                    }
+                )
+
             def nilai(harap, dapat, konteks, nomor, skala=None, _t=tingkat, _c=cacah, _n=nama):
                 _c["n"] += 1
+                if pancar is not None:
+                    catat(fx.ke_hex(dapat), konteks, nomor)
                 d = fx.jarak_ulp(harap, dapat)
                 if d is not None and d > _c["ulp"]:
                     _c["ulp"] = d
@@ -343,6 +394,10 @@ class Bertahap:
 
             def nilai_teks(harap, dapat, konteks, nomor, _c=cacah, _n=nama):
                 _c["n"] += 1
+                if pancar is not None:
+                    # ``dapat`` di sini sudah berupa teks heksadesimal, bukan
+                    # pecahan: berkas fx memang dibandingkan sebagai teks.
+                    catat(dapat, konteks, nomor)
                 if harap != dapat:
                     _c["gagal"] += 1
                     if len(laporan.ketidakcocokan) < BATAS_KETIDAKCOCOKAN:
@@ -353,6 +408,9 @@ class Bertahap:
             sisa = batas_baris - dikerjakan
             akhir = min(self._i + sisa, len(self._baris))
             for i in range(self._i, akhir):
+                # Urutannya dihitung per baris: kolom keberapa sebuah nilai
+                # dilaporkan hanya berarti di dalam barisnya sendiri.
+                urut["k"] = 0
                 _periksa_baris(nama, self._baris[i], i + 1, nilai, nilai_teks)
             dikerjakan += akhir - self._i
             self.baris_selesai += akhir - self._i
@@ -364,13 +422,13 @@ class Bertahap:
         return dikerjakan
 
 
-def jalankan(muat, berkas=None):
+def jalankan(muat, berkas=None, pancar=False):
     """Menjalankan seluruh pemeriksaan sekaligus.
 
     ``muat(nama)`` mengembalikan isi berkas vektor sebagai untai, atau
-    melempar bila tidak ada.
+    melempar bila tidak ada. ``pancar`` mengisi ``laporan.pancar``.
     """
-    bertahap = Bertahap(muat, berkas)
+    bertahap = Bertahap(muat, berkas, pancar)
     while bertahap.kerjakan(100000):
         pass
     return bertahap.laporan
