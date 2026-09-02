@@ -312,7 +312,13 @@ def pasang_bahasa(kode, gambar_lagi=True):
         pass
     # Atribut `lang` bukan hiasan: ia menentukan suara pembaca layar,
     # pemenggalan kata, dan tanda kutip yang dipilih peramban.
+    #
+    # Judul tab diterapkan di sini juga, di baris yang sama-sama dilalui setiap
+    # penggantian bahasa. Ia tidak terlihat di halaman, jadi ia satu-satunya
+    # teks yang bisa tertinggal tanpa ada yang menyadarinya; menaruhnya di sini
+    # berarti tidak ada jalan mengganti bahasa yang melewatinya.
     document.documentElement.setAttribute("lang", K.bahasa)
+    document.title = tr("judul_tab")
     # Prosa tetap di dalam HTML dipilih lewat CSS, bukan lewat Python. Menyusun
     # ulang belasan kilobyte teks di penerjemah yang biayanya satu mikrodetik
     # per pemanggilan fungsi akan terasa, dan CSS melakukannya tanpa biaya.

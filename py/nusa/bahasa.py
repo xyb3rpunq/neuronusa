@@ -68,6 +68,14 @@ def t(kunci):
 TEKS = {
     # -- kerangka -----------------------------------------------------------
     "bahasa": ("Bahasa", "Language"),
+    # Judul tab peramban. Ia tidak terlihat di halaman, jadi ia satu-satunya
+    # teks yang bisa tertinggal berbulan-bulan tanpa ada yang menyadarinya —
+    # padahal ia yang menjadi nama penanda buku dan judul jendela, dan yang
+    # dibacakan pembaca layar saat tabnya berpindah.
+    "judul_tab": (
+        "neuronusa — jaringan syaraf dengan gradien yang bisa dibuktikan",
+        "neuronusa — a neural network with provable gradients",
+    ),
     "tema": ("Tema", "Theme"),
     "tema_sistem": ("Ikut sistem", "Match system"),
     "tema_terang": ("Terang", "Light"),
