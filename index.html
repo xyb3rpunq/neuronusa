@@ -74,57 +74,102 @@
   </head>
 
   <body>
-    <a class="lewati" href="#utama">Lewati ke isi</a>
+    <a class="lewati bhs" lang="id" href="#utama">Lewati ke isi</a>
+    <a class="lewati bhs" lang="en" href="#utama">Skip to content</a>
 
     <header class="kepala">
       <div class="kepala__isi">
         <p class="kepala__cap">IND323 · Kecerdasan Buatan · .Deckyx</p>
         <h1 class="kepala__judul">neuronusa</h1>
-        <p class="kepala__ringkas">
+        <p class="kepala__ringkas bhs" lang="id">
           Jaringan syaraf tiruan yang gradiennya bisa dilihat satu per satu —
           dan dibuktikan benar. Mesinnya Python asli, dijalankan di dalam
           peramban Anda, bukan di server mana pun.
+        </p>
+        <p class="kepala__ringkas bhs" lang="en">
+          An artificial neural network whose gradients you can see one by one —
+          and prove correct. The engine is real Python, running inside your own
+          browser, not on anyone's server.
         </p>
       </div>
     </header>
 
     <main id="utama">
       <section class="kartu kartu--tesis">
-        <h2 class="kartu__judul">Kenapa situs ini ada</h2>
-        <p>
-          Hampir setiap demo jaringan syaraf memperlihatkan kurva galat yang
-          menurun, lalu berhenti di situ. Kurva galat tidak membuktikan apa pun.
-          <strong
-            >Jaringan yang perambatan baliknya salah tetap sering
-            &ldquo;belajar&rdquo;</strong
-          >
-          — hanya lebih lambat dan berhenti di tempat yang keliru — dan kurvanya
-          tetap terlihat menurun dengan meyakinkan.
-        </p>
-        <p>
-          Yang membedakan halaman ini: setiap turunan dihitung ulang dengan
-          selisih hingga, lalu ditampilkan berdampingan dengan hasil perambatan
-          balik beserta galat relatifnya. Itu satu-satunya cara memisahkan
-          perambatan balik yang benar dari yang kebetulan bekerja.
-        </p>
-        <p>
-          <strong>Jangan percayai kalimat itu juga.</strong> Panel
-          <em>Sabotase</em> memasang cacat perambatan balik yang sungguhan
-          &mdash; satu tanda yang terbalik, satu turunan yang lupa dikalikan,
-          satu faktor dua yang tertinggal. Nyalakan salah satunya, latih, dan
-          perhatikan kurva galatnya tetap menurun dengan meyakinkan. Lalu tekan
-          pemeriksa gradien.
-        </p>
+        <h2 class="kartu__judul bhs" lang="id">Kenapa situs ini ada</h2>
+        <h2 class="kartu__judul bhs" lang="en">Why this site exists</h2>
+        <div class="bhs" lang="id">
+          <p>
+            Hampir setiap demo jaringan syaraf memperlihatkan kurva galat yang
+            menurun, lalu berhenti di situ. Kurva galat tidak membuktikan apa
+            pun.
+            <strong
+              >Jaringan yang perambatan baliknya salah tetap sering
+              &ldquo;belajar&rdquo;</strong
+            >
+            — hanya lebih lambat dan berhenti di tempat yang keliru — dan
+            kurvanya tetap terlihat menurun dengan meyakinkan.
+          </p>
+          <p>
+            Yang membedakan halaman ini: setiap turunan dihitung ulang dengan
+            selisih hingga, lalu ditampilkan berdampingan dengan hasil
+            perambatan balik beserta galat relatifnya. Itu satu-satunya cara
+            memisahkan perambatan balik yang benar dari yang kebetulan bekerja.
+          </p>
+          <p>
+            <strong>Jangan percayai kalimat itu juga.</strong> Panel
+            <em>Sabotase</em> memasang cacat perambatan balik yang sungguhan
+            &mdash; satu tanda yang terbalik, satu turunan yang lupa dikalikan,
+            satu faktor dua yang tertinggal. Nyalakan salah satunya, latih, dan
+            perhatikan kurva galatnya tetap menurun dengan meyakinkan. Lalu
+            tekan pemeriksa gradien.
+          </p>
+        </div>
+        <div class="bhs" lang="en">
+          <p>
+            Almost every neural-network demo shows a descending error curve and
+            stops there. An error curve proves nothing.
+            <strong
+              >A network with wrong backpropagation still often
+              &ldquo;learns&rdquo;</strong
+            >
+            — just more slowly, stopping in the wrong place — and its curve
+            still looks convincingly like it is falling.
+          </p>
+          <p>
+            What sets this page apart: every derivative is recomputed with
+            finite differences, then shown side by side with the backpropagated
+            value and its relative error. That is the only way to separate
+            backpropagation that is correct from backpropagation that merely
+            happens to work.
+          </p>
+          <p>
+            <strong>Do not take that on trust either.</strong> The
+            <em>Sabotage</em> panel installs genuine backpropagation defects
+            &mdash; one flipped sign, one activation derivative left
+            unmultiplied, one factor of two omitted. Switch one on, train, and
+            watch the error curve keep falling convincingly. Then press the
+            gradient check.
+          </p>
+        </div>
       </section>
 
       <div id="memuat" class="memuat">
-        <p class="memuat__teks">
+        <p class="memuat__teks bhs" lang="id">
           Menyalakan penerjemah Python di dalam peramban&hellip;
         </p>
-        <p class="memuat__catatan">
+        <p class="memuat__teks bhs" lang="en">
+          Starting the Python interpreter inside your browser&hellip;
+        </p>
+        <p class="memuat__catatan bhs" lang="id">
           Kalau tulisan ini tidak hilang, JavaScript dimatikan atau berkas
           runtime gagal dimuat. Tidak ada cadangan di server: seluruh
           perhitungan di halaman ini memang terjadi di perangkat Anda.
+        </p>
+        <p class="memuat__catatan bhs" lang="en">
+          If this message does not disappear, JavaScript is disabled or the
+          runtime failed to load. There is no server-side fallback: every
+          calculation on this page really does happen on your device.
         </p>
       </div>
 
@@ -134,6 +179,11 @@
           Brython berjalan di atas JavaScript. Tanpa JavaScript tidak ada yang
           bisa dihitung — dan tidak ada versi server yang bisa menggantikannya,
           karena memang tidak ada server.
+        </p>
+        <p class="galat">
+          This page runs Python in the browser through Brython, and Brython runs
+          on JavaScript. Without JavaScript nothing can be computed — and no
+          server-side version can stand in for it, because there is no server.
         </p>
       </noscript>
 
@@ -154,35 +204,53 @@
         </div>
 
         <section class="kartu">
-          <h2 class="kartu__judul">Langkah demi langkah</h2>
-          <p>
+          <h2 class="kartu__judul bhs" lang="id">Langkah demi langkah</h2>
+          <h2 class="kartu__judul bhs" lang="en">Step by step</h2>
+          <p class="bhs" lang="id">
             Pilih satu titik data, dan ikuti perjalanannya melewati jaringan:
             maju sampai menjadi ramalan, lalu balik sebagai galat yang
             dibagikan ke tiap neuron. Angka-angkanya diambil dari perhitungan
             yang sama dengan yang dipakai melatih &mdash; bukan dihitung ulang
             khusus untuk ditampilkan.
           </p>
+          <p class="bhs" lang="en">
+            Pick one data point and follow its journey through the network:
+            forward until it becomes a prediction, then back as the error
+            apportioned to each neuron. The numbers come from the same
+            computation used for training &mdash; not recomputed just for
+            display.
+          </p>
           <div id="langkah"></div>
         </section>
 
         <section class="kartu">
-          <h2 class="kartu__judul">Pemeriksaan gradien</h2>
-          <p>
+          <h2 class="kartu__judul bhs" lang="id">Pemeriksaan gradien</h2>
+          <h2 class="kartu__judul bhs" lang="en">Gradient check</h2>
+          <p class="bhs" lang="id">
             Tekan tombol di bawah untuk menghitung ulang setiap turunan dengan
             selisih tengah <code>(f(w+h) &minus; f(w&minus;h)) / 2h</code>, lalu
             membandingkannya dengan hasil perambatan balik. Keduanya harus
             sepakat sampai sekitar sepuluh digit.
           </p>
+          <p class="bhs" lang="en">
+            Press the button below to recompute every derivative with the
+            central difference <code>(f(w+h) &minus; f(w&minus;h)) / 2h</code>,
+            then compare it against the backpropagated value. The two must agree
+            to roughly ten digits.
+          </p>
           <button id="periksa" class="tombol tombol--utama" type="button">
-            Periksa seluruh gradien
+            <span class="bhs" lang="id">Periksa seluruh gradien</span>
+            <span class="bhs" lang="en">Check every gradient</span>
           </button>
           <div id="gradien"></div>
         </section>
       </div>
 
       <section class="kartu">
-        <h2 class="kartu__judul">Catatan dan definisi</h2>
-        <dl class="kamus">
+        <h2 class="kartu__judul bhs" lang="id">Catatan dan definisi</h2>
+        <h2 class="kartu__judul bhs" lang="en">Notes and definitions</h2>
+
+        <dl class="kamus bhs" lang="id">
           <dt>Perceptron</dt>
           <dd>
             Satu neuron: jumlah berbobot dari masukannya, ditambah bias, lalu
@@ -196,8 +264,8 @@
             bisa memisahkan XOR. Pembuktian itu benar, dan salah dipahami
             sebagai bukti bahwa jaringan syaraf tidak berguna; pendanaan
             bidangnya nyaris berhenti selama hampir dua dekade. Setel neuron
-            tersembunyi ke nol di atas, dan Anda bisa melihat batas itu
-            sendiri alih-alih membaca kutipannya.
+            tersembunyi ke nol di atas, dan Anda bisa melihat batas itu sendiri
+            alih-alih membaca kutipannya.
           </dd>
 
           <dt>Perambatan maju</dt>
@@ -297,57 +365,218 @@
             mana-mana.
           </dd>
         </dl>
+
+        <dl class="kamus bhs" lang="en">
+          <dt>Perceptron</dt>
+          <dd>
+            One neuron: a weighted sum of its inputs, plus a bias, passed
+            through an activation function. Without a hidden layer it can draw
+            only <em>one straight line</em> through the input space.
+          </dd>
+
+          <dt>The Minsky&ndash;Papert limit</dt>
+          <dd>
+            In 1969 Minsky and Papert proved that a single-layer perceptron
+            cannot separate XOR. The proof was correct, and was misread as proof
+            that neural networks were useless; funding for the field nearly
+            stopped for almost two decades. Set the hidden neurons to zero
+            above, and you can see that limit for yourself rather than read a
+            quotation about it.
+          </dd>
+
+          <dt>Forward pass</dt>
+          <dd>
+            Running the input through every layer until it emerges as a
+            prediction. Each layer's intermediate output is kept &mdash; not to
+            be displayed, but because backpropagation needs it, and recomputing
+            it would double the entire cost of training.
+          </dd>
+
+          <dt>Backpropagation</dt>
+          <dd>
+            The chain rule applied backwards through the network's layers. The
+            same weights are used twice: once to pass the signal forward, once
+            to pass the error back. That is the whole idea.
+          </dd>
+
+          <dt>Gradient</dt>
+          <dd>
+            The derivative of the error with respect to each weight: how much
+            the error changes if that weight is nudged. The gradient's sign
+            tells you which direction makes things worse; training moves the
+            other way.
+          </dd>
+
+          <dt>Gradient checking</dt>
+          <dd>
+            Recomputing each derivative numerically by shifting its weight by
+            <code>h</code> in both directions. It uses the central difference,
+            not the forward one: the forward difference's error scales with
+            <code>h</code>, the central difference's with <code>h&sup2;</code>,
+            and that gap decides whether a real defect can be told apart from
+            rounding noise.
+          </dd>
+
+          <dt>Controlled sabotage</dt>
+          <dd>
+            A defect installed on purpose to test the measuring instrument. A
+            checker that never fails checks nothing, and the only way to know
+            whether it really works is to give it something it must catch. The
+            four defects on this page are not random noise but mistakes people
+            genuinely write &mdash; random noise breaks training immediately and
+            therefore teaches nothing.
+          </dd>
+
+          <dt>The limit of gradient checking</dt>
+          <dd>
+            Gradient checking verifies whether the derivative is <em>right</em>,
+            not whether it is <em>used</em>. The &ldquo;bias never
+            updated&rdquo; defect in the Sabotage panel passes it entirely, and
+            must: that defect acts on the update step, long after the gradient
+            has been computed. A tool whose limits are unknown is more dangerous
+            than no tool.
+          </dd>
+
+          <dt>Reference network</dt>
+          <dd>
+            When a defect is active, a second network with bit-identical initial
+            weights and correct backpropagation trains alongside it, appearing
+            as the dashed line on the error curve. That shared seed is what
+            makes the comparison mean anything: whatever separates the two
+            curves is the defect, not luck in where they started.
+          </dd>
+
+          <dt>Learning rate</dt>
+          <dd>
+            The step length per epoch. Too small and training crawls; too large
+            and the step overshoots the minimum, then bounces further and
+            further until the numbers overflow to infinity.
+          </dd>
+
+          <dt>Momentum</dt>
+          <dd>
+            Adding part of the previous step to the current one. The
+            steady-state step becomes
+            <code>rate &divide; (1 &minus; momentum)</code>, so a momentum of
+            0.9 <em>multiplies the effective rate by ten</em>. That is why
+            switching momentum on at an already-large rate almost always makes
+            training blow up.
+          </dd>
+
+          <dt>Xavier initialisation</dt>
+          <dd>
+            An initial weight range that narrows as each neuron gains more
+            inputs. Without it, the weighted sums in a wide layer land straight
+            in the flat region of the sigmoid, their derivatives go nearly to
+            zero, and the network practically never starts learning.
+          </dd>
+
+          <dt>Mean squared error</dt>
+          <dd>
+            The mean of the squared differences between prediction and target,
+            halved. That halving is not decorative: it makes the derivative
+            simply <code>(y &minus; t)</code>, with no factor of two stuck to
+            everything.
+          </dd>
+        </dl>
       </section>
 
       <section class="kartu">
-        <h2 class="kartu__judul">Enam bahasa, angka yang sama persis</h2>
-        <p>
-          Algoritma inti di halaman ini &mdash; certainty factor, Bayes,
-          himpunan kabur, entropi, perolehan informasi, dan pembangkit acak
-          SplitMix64 &mdash; sudah ditulis enam kali dalam enam bahasa: Rust,
-          Go, PL/SQL Oracle, Lua, Swift, dan Python. Keenamnya diadu terhadap
-          berkas vektor yang sama, dan
-          <strong>3.796 pernyataan cocok sampai ke bit terakhir</strong>.
-        </p>
-        <p>
-          Angkanya berpindah sebagai pola bit heksadesimal 16 digit, bukan
-          sebagai desimal. Desimal tidak memenuhi syarat: pengukuran pada
-          proyek pendahulunya menemukan sebuah pengurai desimal yang salah
-          membulat sebesar 1 ULP pada 27.548 dari 200.000 nilai uji.
-        </p>
-        <p class="bukti">
-          Sebagai bukti mesinnya benar-benar hidup di peramban Anda: pola bit
-          <code>0.1</code> menurut modul <code>fx</code> yang sedang berjalan
-          adalah <code id="bukti-bit">&hellip;</code>. Nilai yang benar adalah
-          <code>3fb999999999999a</code>.
-        </p>
+        <h2 class="kartu__judul bhs" lang="id">
+          Enam bahasa, angka yang sama persis
+        </h2>
+        <h2 class="kartu__judul bhs" lang="en">
+          Six languages, bit-identical numbers
+        </h2>
 
-        <p>
-          Tetapi satu angka bukan bukti. Tekan tombol di bawah dan seluruh
-          3.796 pernyataan itu dijalankan ulang <em>sekarang, di peramban
-          Anda</em>, terhadap berkas vektor yang sama persis dengan yang
-          dipakai CI &mdash; bukan angka yang diketik ke dalam halaman ini.
-        </p>
+        <div class="bhs" lang="id">
+          <p>
+            Algoritma inti di halaman ini &mdash; certainty factor, Bayes,
+            himpunan kabur, entropi, perolehan informasi, dan pembangkit acak
+            SplitMix64 &mdash; sudah ditulis enam kali dalam enam bahasa: Rust,
+            Go, PL/SQL Oracle, Lua, Swift, dan Python. Keenamnya diadu terhadap
+            berkas vektor yang sama, dan
+            <strong>3.796 pernyataan cocok sampai ke bit terakhir</strong>.
+          </p>
+          <p>
+            Angkanya berpindah sebagai pola bit heksadesimal 16 digit, bukan
+            sebagai desimal. Desimal tidak memenuhi syarat: pengukuran pada
+            proyek pendahulunya menemukan sebuah pengurai desimal yang salah
+            membulat sebesar 1 ULP pada 27.548 dari 200.000 nilai uji.
+          </p>
+          <p class="bukti">
+            Sebagai bukti mesinnya benar-benar hidup di peramban Anda: pola bit
+            <code>0.1</code> menurut modul <code>fx</code> yang sedang berjalan
+            adalah <code id="bukti-bit">&hellip;</code>. Nilai yang benar adalah
+            <code>3fb999999999999a</code>.
+          </p>
+          <p>
+            Tetapi satu angka bukan bukti. Tekan tombol di bawah dan seluruh
+            3.796 pernyataan itu dijalankan ulang <em>sekarang, di peramban
+            Anda</em>, terhadap berkas vektor yang sama persis dengan yang
+            dipakai CI &mdash; bukan angka yang diketik ke dalam halaman ini.
+          </p>
+          <p class="catatan">
+            Ini bukan hiasan. Dua cacat sungguhan di halaman ini hanya muncul di
+            peramban dan tidak bisa ditangkap uji CPython mana pun: penerjemahnya
+            memformat <code>'%.3e'</code> dengan salah, dan
+            <code>math.ldexp</code> meluap untuk bilangan subnormal. Keduanya
+            ditemukan justru dengan menjalankan pemeriksaan ini di sini.
+          </p>
+        </div>
 
-        <p class="catatan">
-          Ini bukan hiasan. Dua cacat sungguhan di halaman ini hanya muncul di
-          peramban dan tidak bisa ditangkap uji CPython mana pun: penerjemahnya
-          memformat <code>'%.3e'</code> dengan salah, dan
-          <code>math.ldexp</code> meluap untuk bilangan subnormal. Keduanya
-          ditemukan justru dengan menjalankan pemeriksaan ini di sini.
-        </p>
+        <div class="bhs" lang="en">
+          <p>
+            The core algorithms on this page &mdash; certainty factors, Bayes,
+            fuzzy sets, entropy, information gain, and the SplitMix64 random
+            generator &mdash; have been written six times in six languages:
+            Rust, Go, Oracle PL/SQL, Lua, Swift, and Python. All six are checked
+            against the same vector files, and
+            <strong>3,796 assertions match to the last bit</strong>.
+          </p>
+          <p>
+            The numbers cross as 16-digit hexadecimal bit patterns, not as
+            decimal. Decimal does not qualify: measurement on a predecessor
+            project found a decimal parser mis-rounding by 1 ULP on 27,548 of
+            200,000 test values.
+          </p>
+          <p class="bukti">
+            As proof the engine really is alive in your browser: the bit pattern
+            of <code>0.1</code> according to the running <code>fx</code> module
+            is <code id="bukti-bit-en">&hellip;</code>. The correct value is
+            <code>3fb999999999999a</code>.
+          </p>
+          <p>
+            But one number is not proof. Press the button below and all 3,796
+            assertions are rerun <em>right now, in your browser</em>, against
+            exactly the same vector files CI uses &mdash; not numbers typed into
+            this page.
+          </p>
+          <p class="catatan">
+            This is not decoration. Two real defects on this page appear only in
+            the browser and no CPython test could catch them: the interpreter
+            formats <code>'%.3e'</code> incorrectly, and <code>math.ldexp</code>
+            overflows for subnormal numbers. Both were found precisely by
+            running this check here.
+          </p>
+        </div>
 
         <button id="jalankan-konformansi" class="tombol tombol--utama" type="button">
-          Jalankan 3.796 pemeriksaan di peramban ini
+          <span class="bhs" lang="id">Jalankan 3.796 pemeriksaan di peramban ini</span>
+          <span class="bhs" lang="en">Run all 3,796 checks in this browser</span>
         </button>
         <div id="konformansi"></div>
       </section>
     </main>
 
     <footer class="kaki">
-      <p>
+      <p class="bhs" lang="id">
         <strong>neuronusa</strong> &mdash; bagian dari empat situs IND323 yang
         dibangun Daniel Hutajulu (<code>.Deckyx</code>).
+      </p>
+      <p class="bhs" lang="en">
+        <strong>neuronusa</strong> &mdash; one of four IND323 sites built by
+        Daniel Hutajulu (<code>.Deckyx</code>).
       </p>
       <p class="kaki__tautan">
         <a href="https://github.com/xyb3rpunq/neuronusa">Kode sumber</a>

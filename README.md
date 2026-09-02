@@ -10,7 +10,8 @@
 [![Live](https://img.shields.io/badge/live-xyb3rpunq.github.io%2Fneuronusa-0d9488)](https://xyb3rpunq.github.io/neuronusa/)
 [![Lisensi](https://img.shields.io/badge/lisensi-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-di%20peramban-3776ab?logo=python&logoColor=white)](https://brython.info/)
-[![Uji](https://img.shields.io/badge/uji-99-brightgreen)](py/uji/test_nusa.py)
+[![Uji](https://img.shields.io/badge/uji-108-brightgreen)](py/uji/test_nusa.py)
+[![Bahasa](https://img.shields.io/badge/bahasa-ID%20%2B%20EN-blue)](py/nusa/bahasa.py)
 [![Konformansi](https://img.shields.io/badge/konformansi-3.796%20pernyataan-brightgreen)](conformance/)
 
 **[🔗 Buka situsnya / Open the site](https://xyb3rpunq.github.io/neuronusa/)**
@@ -82,6 +83,7 @@ w L0 n3←2     -0.72119     0.00002257          0.00002257         2.77e-09
 | **Konformansi** | Tombol yang menjalankan ulang 3.796 pernyataan lintas bahasa di peramban kamu, sekarang. |
 | **Ekspor** | Unduh seluruh hasilnya sebagai CSV yang rapi di Excel, atau cetak jadi PDF. |
 | **Bagikan** | Alamatnya selalu mencerminkan setelan; membukanya di tempat lain menghasilkan jaringan yang sama persis. |
+| **Dwibahasa** | Seluruh isinya ada dalam Bahasa Indonesia dan Inggris, berganti seketika. Prosa tetap dipilih CSS, bukan Python — belasan kilobyte teks tidak layak disusun ulang penerjemah. |
 
 Setiap gambar punya keterangan yang menjelaskan **apa yang harus dilihat**,
 bukan sekadar menamai sumbunya.
@@ -203,7 +205,7 @@ npm run dev
 |---|---|
 | `npm run dev` | Kemas mesin Python, jalankan server di `:5176`. |
 | `npm run build` | Kemas, lalu bangun ke `dist/`. |
-| `npm test` | 99 uji mesin Python (CPython). |
+| `npm test` | 108 uji mesin Python (CPython). |
 | `npm run conform` | Adu Python lawan 3.796 vektor Rust. |
 | `npm run typecheck` | Periksa tipe TypeScript. |
 | `npm run budget` | Anggaran ukuran berkas terbitan. |
@@ -226,7 +228,8 @@ py/nusa/            mesin — CPython saat uji, Brython di peramban
   tautan.py         penyandi setelan ke alamat, dengan pemeriksaan masukan
   data.py           pengurai data tempelan pengguna
   ekspor.py         penyusun laporan CSV
-py/uji/             99 uji
+  bahasa.py         kamus dwibahasa Indonesia dan Inggris
+py/uji/             108 uji
 conformance/        9 berkas vektor yang dihasilkan Rust
 src/
   app.py            seluruh antarmuka, ditulis dalam Python
@@ -279,7 +282,7 @@ aktivasi dan empat bentuk jaringan.
 
 ### Yang diuji, dan kenapa
 
-99 uji, ditulis untuk gagal ketika sesuatu memang salah:
+108 uji, ditulis untuk gagal ketika sesuatu memang salah:
 
 - **`test_pemeriksa_gradien_menangkap_gradien_yang_dirusak`** — merusak satu
   gradien dengan sengaja, lalu menuntut pemeriksanya gagal.
@@ -447,7 +450,7 @@ npm run audit:all  # tests, conformance, typecheck, build, budget, bundle check
 |---|---|
 | `npm run dev` | Bundle the Python engine, serve on `:5176`. |
 | `npm run build` | Bundle, then build to `dist/`. |
-| `npm test` | 99 engine tests (CPython). |
+| `npm test` | 108 engine tests (CPython). |
 | `npm run conform` | Check Python against 3,796 Rust vectors. |
 | `npm run typecheck` | TypeScript type check. |
 | `npm run budget` | Published-size budget. |

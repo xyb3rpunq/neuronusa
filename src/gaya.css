@@ -140,6 +140,34 @@ a {
   left: 0;
 }
 
+/* --- dwibahasa ---------------------------------------------------------- */
+/*
+ * Prosa tetap di dalam HTML ditulis dua kali, dan yang tidak dipakai
+ * disembunyikan CSS.
+ *
+ * # Kenapa CSS, bukan Python
+ *
+ * Karena belasan kilobyte teks tidak layak disusun ulang oleh penerjemah yang
+ * biayanya satu mikrodetik per pemanggilan fungsi. CSS memilihnya tanpa biaya
+ * sama sekali, dan pilihannya sudah benar sejak bingkai pertama — sebelum
+ * Brython selesai dimuat sama sekali.
+ *
+ * # Kenapa `:root:not([data-bahasa="en"])`, bukan `[data-bahasa="id"]`
+ *
+ * Karena atribut itu baru dipasang setelah Python berjalan. Aturan yang
+ * menuntut `data-bahasa="id"` tidak akan cocok selama beberapa ratus
+ * milidetik pertama, dan yang terlihat pengunjung adalah kedua bahasa
+ * sekaligus — lalu salah satunya lenyap. Bentuk negatif ini benar sejak
+ * bingkai pertama.
+ */
+:root:not([data-bahasa="en"]) .bhs[lang="en"] {
+  display: none;
+}
+
+:root[data-bahasa="en"] .bhs[lang="id"] {
+  display: none;
+}
+
 /* --- kepala ------------------------------------------------------------ */
 
 .kepala {

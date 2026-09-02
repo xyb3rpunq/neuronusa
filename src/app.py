@@ -24,7 +24,8 @@ from browser import document, html, timer, window
 from browser import svg as gambar_svg
 
 from nusa import data as pengurai_data
-from nusa import ekspor, fx, tautan
+from nusa import bahasa, ekspor, fx, tautan
+from nusa.bahasa import t as tr
 from nusa.jaringan import AKTIVASI, CACAT, DATASET, Jaringan
 
 # ---------------------------------------------------------------------------
@@ -226,15 +227,14 @@ def salin_tautan(_ev=None):
     kosongkan(wadah)
 
     def berhasil(_hasil):
-        wadah <= html.SPAN("Tautan disalin.", Class="kabar kabar--benar")
+        wadah <= html.SPAN(tr("tautan_disalin"), Class="kabar kabar--benar")
 
     def gagal(_galat):
         # Papan klip bisa ditolak peramban, dan itu bukan kesalahan yang perlu
         # ditutupi. Alamat di bilah alamat sudah benar; pengguna tinggal
         # menyalinnya sendiri.
         wadah <= html.SPAN(
-            "Peramban menolak akses papan klip \u2014 salin saja alamat di bilah "
-            "alamat, isinya sudah tepat.",
+            tr("papan_klip_ditolak"),
             Class="kabar",
         )
 
@@ -248,11 +248,78 @@ def salin_tautan(_ev=None):
 # Tema
 # ---------------------------------------------------------------------------
 
-#: Ketiga pilihan tema. "sistem" berarti tidak memasang atribut apa pun,
+#: Pilihan bahasa, dengan nama tiap bahasa ditulis dalam bahasa itu sendiri.
+#:
+#: "English", bukan "Inggris". Pemilih bahasa dibaca justru oleh orang yang
+#: belum tentu paham bahasa yang sedang aktif, dan menuliskannya dalam bahasa
+#: aktif membuat pemilihnya tidak bisa dipakai oleh satu-satunya orang yang
+#: benar-benar membutuhkannya.
+BAHASA = bahasa.BAHASA
+
+#: Kode ketiga pilihan tema. "sistem" berarti tidak memasang atribut apa pun,
 #: sehingga ``prefers-color-scheme`` yang menentukan.
-TEMA = [("sistem", "Ikut sistem"), ("terang", "Terang"), ("gelap", "Gelap")]
+KODE_TEMA = ["sistem", "terang", "gelap"]
+
+
+def pilihan_tema():
+    """Ketiga pilihan tema, dengan namanya dalam bahasa yang sedang aktif.
+
+    Fungsi, bukan tetapan. Sebuah senarai yang disusun sekali saat modul
+    diimpor akan membeku pada bahasa yang aktif saat itu, dan tidak akan pernah
+    ikut berganti — cacat yang hanya terlihat setelah bahasanya diganti sekali.
+    """
+    return [
+        ("sistem", tr("tema_sistem")),
+        ("terang", tr("tema_terang")),
+        ("gelap", tr("tema_gelap")),
+    ]
+
 
 _KUNCI_TEMA = "neuronusa:tema"
+_KUNCI_BAHASA = "neuronusa:bahasa"
+
+
+def bahasa_tersimpan():
+    """Bahasa yang pernah dipilih di peramban ini, atau bawaan.
+
+    Kalau belum pernah dipilih, bahasa peramban dijadikan petunjuk. Pengunjung
+    yang perambannya berbahasa Inggris hampir pasti lebih suka membaca Inggris,
+    dan memaksanya menekan tombol lebih dulu adalah memindahkan pekerjaan yang
+    bisa dilakukan halaman ini sendiri.
+    """
+    try:
+        nilai = window.localStorage.getItem(_KUNCI_BAHASA)
+        if bahasa.kode_sah(nilai):
+            return nilai
+    except Exception:  # noqa: BLE001 - penyimpanan bisa dimatikan sama sekali
+        pass
+    try:
+        petunjuk = str(window.navigator.language or "").lower()
+        if petunjuk.startswith("en"):
+            return "en"
+    except Exception:  # noqa: BLE001 - sebagian peramban tidak menyediakannya
+        pass
+    return "id"
+
+
+def pasang_bahasa(kode, gambar_lagi=True):
+    """Mengganti bahasa aktif, menyimpannya, lalu menggambar ulang."""
+    bahasa.atur(kode)
+    K.bahasa = bahasa.sekarang()
+    try:
+        window.localStorage.setItem(_KUNCI_BAHASA, K.bahasa)
+    except Exception:  # noqa: BLE001 - jendela penyamaran, dll.
+        pass
+    # Atribut `lang` bukan hiasan: ia menentukan suara pembaca layar,
+    # pemenggalan kata, dan tanda kutip yang dipilih peramban.
+    document.documentElement.setAttribute("lang", K.bahasa)
+    # Prosa tetap di dalam HTML dipilih lewat CSS, bukan lewat Python. Menyusun
+    # ulang belasan kilobyte teks di penerjemah yang biayanya satu mikrodetik
+    # per pemanggilan fungsi akan terasa, dan CSS melakukannya tanpa biaya.
+    document.documentElement.setAttribute("data-bahasa", K.bahasa)
+    if gambar_lagi:
+        gambar_kontrol()
+        gambar_ulang()
 
 
 def tema_tersimpan():
@@ -260,7 +327,7 @@ def tema_tersimpan():
         nilai = window.localStorage.getItem(_KUNCI_TEMA)
     except Exception:  # noqa: BLE001 - penyimpanan bisa dimatikan sama sekali
         return "sistem"
-    return nilai if nilai in [k for k, _ in TEMA] else "sistem"
+    return nilai if nilai in KODE_TEMA else "sistem"
 
 
 def pasang_tema(nama, gambar_lagi=True):
@@ -321,6 +388,7 @@ class Keadaan:
         self.bayangan = None
         self.riwayat_bayangan = []
         self.tema = "sistem"
+        self.bahasa = bahasa.sekarang()
 
         # Setelan dari alamat diterapkan **sebelum** jaringannya dibangun.
         # Menerapkannya sesudah berarti membangun satu jaringan yang langsung
@@ -411,7 +479,7 @@ def gambar_galat():
 
     riwayat = K.riwayat
     if len(riwayat) < 2:
-        return s, "Belum ada langkah pelatihan."
+        return s, tr("belum_dilatih")
 
     bayangan = K.riwayat_bayangan if K.bayangan is not None else []
     # Kedua kurva berbagi satu sumbu. Menskalakannya sendiri-sendiri akan
@@ -464,19 +532,14 @@ def gambar_galat():
     t2.textContent = "epoch %d" % K.epoch
     s <= t2
 
-    arah = "menurun" if riwayat[-1] < riwayat[0] else "TIDAK menurun"
+    arah = tr("menurun") if riwayat[-1] < riwayat[0] else tr("tidak_menurun")
     terang = (
-        "Galat %s dari %s menjadi %s setelah %d epoch. "
-        "Sumbu tegaknya berskala dari nilai terkecil sampai terbesar yang pernah "
-        "dicapai, jadi kurva yang terlihat curam belum tentu turun banyak — "
-        "perhatikan angka di sumbunya, bukan kemiringannya."
+        tr("terang_kurva")
         % (arah, ilmiah(riwayat[0], 2), ilmiah(riwayat[-1], 2), K.epoch)
     )
     if bayangan:
         terang += (
-            " Garis putus-putus adalah jaringan pembanding dengan bobot awal yang "
-            "sama persis dan perambatan balik yang benar. Perhatikan berapa "
-            "banyak — atau berapa sedikit — keduanya berbeda: %s berbanding %s."
+            tr("terang_pembanding")
             % (ilmiah(riwayat[-1], 2), ilmiah(bayangan[-1], 2))
         )
     return s, terang
@@ -637,11 +700,7 @@ def gambar_batas():
     benar = sum(1 for x, t in K.data() if round(K.jaringan.ramal(x)[0]) == int(t[0]))
     total = len(K.data())
     terang = (
-        "Warna latar adalah tebakan jaringan di setiap titik bidang; makin pekat "
-        "makin yakin. Lingkaran adalah data latihnya. Saat ini %d dari %d titik "
-        "diramalkan benar. Perhatikan bentuk batasnya: perceptron tanpa lapis "
-        "tersembunyi hanya bisa menarik garis lurus, dan itulah sebabnya XOR "
-        "mustahil baginya." % (benar, total)
+        tr("terang_batas") % (benar, total)
     )
     return kanvas, terang
 
@@ -697,7 +756,7 @@ def gambar_jaringan():
             t.textContent = str(j + 1)
             s <= t
 
-    nama = ["masukan"] + ["tersembunyi"] * (len(ukuran) - 2) + ["keluaran"]
+    nama = [tr("lapis_masukan")] + [tr("lapis_tersembunyi")] * (len(ukuran) - 2) + [tr("lapis_keluaran")]
     for lap in range(len(ukuran)):
         x, _ = titik(lap, 0)
         t = svg("text", x=x, y=T - 8, text_anchor="middle", font_size=9, fill="var(--tinta-3)")
@@ -705,12 +764,7 @@ def gambar_jaringan():
         s <= t
 
     terang = (
-        "Tebal garis menyatakan besar bobotnya, warnanya menyatakan tandanya. "
-        "Bobot negatif dan positif berperan berlawanan, jadi menyamakan warnanya "
-        "akan menyembunyikan struktur yang justru sedang dipelajari jaringan. "
-        "Nilai tepatnya ada di tabel di bawah — bukan sebagai gelembung yang "
-        "muncul saat disentuh tetikus, karena gelembung itu tidak pernah muncul "
-        "di layar sentuh dan tidak pernah terbaca pembaca layar."
+        tr("terang_bobot")
     )
     return s, terang
 
@@ -740,10 +794,10 @@ def gambar_ulang(berat=True):
         ringkas <= html.P(K.pesan, Class="galat")
 
     kotak = html.DIV(Class="hasil")
-    kotak <= html.DIV("Galat kuadrat rata-rata", Class="hasil__label")
+    kotak <= html.DIV(tr("galat_kuadrat"), Class="hasil__label")
     kotak <= html.DIV(ilmiah(galat, 4), Class="hasil__nilai")
     kotak <= html.DIV(
-        "%d dari %d titik diramalkan benar setelah %d epoch — %d parameter dilatih."
+        tr("ringkas_hasil")
         % (benar, len(data), K.epoch, K.jaringan.jumlah_parameter()),
         Class="hasil__tafsir",
     )
@@ -760,12 +814,12 @@ def gambar_ulang(berat=True):
     kunci_galat = None
     if K.bayangan is not None:
         kunci_galat = [
-            ("var(--aksen)", "jaringan yang disabotase"),
-            ("var(--tinta-3)", "pembanding yang benar (putus-putus)"),
+            ("var(--aksen)", tr("kunci_disabotase")),
+            ("var(--tinta-3)", tr("kunci_pembanding")),
         ]
     ringkas <= kartu(
-        "Kurva galat",
-        gambar("Galat tiap epoch", t_galat, s_galat, 640, 200, kunci_galat),
+        tr("kartu_kurva"),
+        gambar(tr("judul_kurva"), t_galat, s_galat, 640, 200, kunci_galat),
     )
 
     if not berat:
@@ -776,30 +830,30 @@ def gambar_ulang(berat=True):
 
     s_batas, t_batas = gambar_batas()
     wadah <= kartu(
-        "Batas keputusan",
+        tr("kartu_batas"),
         bingkai(
-            "Tebakan jaringan di seluruh bidang",
+            tr("judul_batas"),
             t_batas,
             s_batas,
-            [("var(--kelas-a)", "kelas 0"), ("var(--kelas-b)", "kelas 1")],
+            [("var(--kelas-a)", tr("kelas_0")), ("var(--kelas-b)", tr("kelas_1"))],
         ),
     )
 
     s_jar, t_jar = gambar_jaringan()
     wadah <= kartu(
-        "Bobot yang dipelajari",
+        tr("kartu_bobot"),
         gambar(
-            "Peta bobot jaringan",
+            tr("judul_bobot"),
             t_jar,
             s_jar,
             420,
             max(180, max(K.jaringan.ukuran) * 44 + 40),
-            [("var(--positif)", "bobot positif"), ("var(--negatif)", "bobot negatif")],
+            [("var(--positif)", tr("bobot_positif")), ("var(--negatif)", tr("bobot_negatif"))],
         ),
         tabel_bobot(),
     )
 
-    wadah <= kartu("Ramalan tiap titik data", tabel_ramalan(data))
+    wadah <= kartu(tr("kartu_ramalan"), tabel_ramalan(data))
 
     # Jejaknya ikut bagian yang mahal: ia menuntut satu perambatan maju dan
     # balik penuh, dan angkanya berubah setiap epoch — tetapi tidak ada yang
@@ -831,7 +885,7 @@ def banding_cacat(data, galat, benar):
     galat_benar = K.bayangan.galat(data)
     benar_bayangan = sum(1 for x, t in data if round(K.bayangan.ramal(x)[0]) == int(t[0]))
 
-    teks = "Cacat menyala: %s. Yang disabotase ada di %s dengan %d dari %d titik benar; pembanding yang benar di %s dengan %d. " % (
+    teks = tr("banding_cacat") % (
         label,
         ilmiah(galat, 4),
         benar,
@@ -841,21 +895,20 @@ def banding_cacat(data, galat, benar):
     )
 
     if K.epoch == 0:
-        teks += "Keduanya belum dilatih — tekan Latih."
+        teks += tr("banding_belum")
     elif galat < galat_benar:
         teks += (
-            "Yang disabotase justru berakhir LEBIH RENDAH. Itu bukan "
-            "kebetulan yang lucu melainkan seluruh maksud halaman ini."
+            tr("banding_lebih_rendah")
         )
     elif galat_benar < galat and benar >= benar_bayangan:
-        teks += "Keduanya sama-sama menurun, dan keduanya menjawab sama banyak."
+        teks += tr("banding_setara")
     else:
-        teks += "Yang disabotase tertinggal — tetapi tetap menurun."
+        teks += tr("banding_tertinggal")
 
     teks += (
-        "  Pemeriksa gradien menangkap cacat ini."
+        tr("banding_tertangkap")
         if tertangkap
-        else "  Pemeriksa gradien tidak bisa menangkap yang ini."
+        else tr("banding_lolos")
     )
     return teks
 
@@ -882,22 +935,14 @@ def diagnosa_macet(data, benar):
 
     if K.tersembunyi == 0 and K.dataset in ("xor", "lingkaran"):
         return (
-            "Pelatihan berhenti bergerak. Ini bukan setelan yang salah melainkan "
-            "batas yang sesungguhnya: tanpa lapis tersembunyi jaringan ini cuma "
-            "bisa menarik satu garis lurus, dan tidak ada garis lurus yang "
-            "memisahkan masalah ini. Tambahkan neuron tersembunyi."
+            tr("macet_tanpa_tersembunyi")
         )
     if tetap:
         return (
-            "Pelatihan berhenti bergerak, dan jaringan menjawab sama untuk setiap "
-            "masukan — neuronnya jenuh atau mati, sehingga turunannya nyaris nol "
-            "dan tidak ada lagi yang mendorongnya. Kecilkan laju efektifnya, atau "
-            "ganti aktivasinya; relu paling sering mati begini."
+            tr("macet_jenuh")
         )
     return (
-        "Pelatihan berhenti bergerak sebelum seluruh titik benar. Coba tambah "
-        "neuron tersembunyi, atau ganti benih bobot awal — sebagian titik awal "
-        "memang berakhir di lembah yang bukan yang terdalam."
+        tr("macet_umum")
     )
 
 
@@ -911,7 +956,7 @@ def tabel_bobot():
     bungkus = html.DIV(Class="gulir-x")
     t = html.TABLE()
     kepala = html.TR()
-    for h in ("parameter", "nilai"):
+    for h in (tr("kolom_parameter"), tr("kolom_nilai")):
         kepala <= html.TH(h)
     t <= html.THEAD(kepala)
     isi = html.TBODY()
@@ -936,7 +981,14 @@ def tabel_ramalan(data):
     bungkus = html.DIV(Class="gulir-x")
     t = html.TABLE()
     kepala = html.TR()
-    for h in ("x₁", "x₂", "sasaran", "keluaran", "galat", "benar"):
+    for h in (
+        "x₁",
+        "x₂",
+        tr("kolom_sasaran"),
+        tr("kolom_keluaran"),
+        tr("kolom_galat"),
+        tr("kolom_benar"),
+    ):
         kepala <= html.TH(h)
     t <= html.THEAD(kepala)
     isi = html.TBODY()
@@ -949,7 +1001,7 @@ def tabel_ramalan(data):
         baris <= html.TD(n(sasaran[0], 0), Class="num")
         baris <= html.TD(n(y, 4), Class="num")
         baris <= html.TD(n(abs(y - sasaran[0]), 4), Class="num")
-        baris <= html.TD("ya" if cocok else "—")
+        baris <= html.TD(tr("ya") if cocok else "—")
         isi <= baris
     t <= isi
     bungkus <= t
@@ -972,41 +1024,27 @@ def tafsir_pemeriksaan(hasil):
     if K.cacat == "tidak_ada":
         if hasil["lolos"]:
             return html.P(
-                "Tidak ada cacat yang menyala, dan pemeriksanya lolos — seperti "
-                "seharusnya. Untuk membuktikan pemeriksa ini benar-benar "
-                "memeriksa sesuatu, nyalakan salah satu cacat di panel Sabotase "
-                "lalu tekan tombol ini lagi.",
+                tr("tafsir_tanpa_cacat_lolos"),
                 Class="catatan",
             )
         return html.P(
-            "Tidak ada cacat yang menyala, tetapi pemeriksanya gagal. Ini tidak "
-            "diharapkan terjadi; kalau Anda melihatnya, ada yang salah di mesin "
-            "ini dan bukan di setelan Anda.",
+            tr("tafsir_tanpa_cacat_gagal"),
             Class="galat",
         )
 
     label, _tempat, tertangkap, _penjelasan = CACAT[K.cacat]
     if tertangkap and not hasil["lolos"]:
         return html.P(
-            "Cacat \u201c%s\u201d menyala, dan pemeriksanya menangkapnya. Perhatikan "
-            "kurva galat di sebelah: ia tetap menurun. Tidak ada satu pun angka "
-            "di kurva itu yang bisa memberi tahu Anda hal yang baru saja "
-            "diberitahukan tabel ini." % label,
+            tr("tafsir_tertangkap") % label,
             Class="catatan",
         )
     if not tertangkap and hasil["lolos"]:
         return html.P(
-            "Cacat \u201c%s\u201d menyala, dan pemeriksanya LOLOS. Itu bukan kegagalan "
-            "pemeriksanya melainkan batasnya: ia memeriksa apakah turunannya "
-            "benar, bukan apakah turunannya dipakai. Cacat ini bekerja pada "
-            "langkah pembaruan, jauh setelah gradiennya selesai dihitung. "
-            "Alat yang batasnya tidak diketahui lebih berbahaya daripada tidak "
-            "punya alat." % label,
+            tr("tafsir_batas_alat") % label,
             Class="catatan",
         )
     return html.P(
-        "Cacat \u201c%s\u201d menyala dan hasilnya tidak seperti yang diperkirakan "
-        "katalog cacatnya. Ini tidak diharapkan terjadi." % label,
+        tr("tafsir_tak_terduga") % label,
         Class="galat",
     )
 
@@ -1014,7 +1052,7 @@ def tafsir_pemeriksaan(hasil):
 def jalankan_periksa_gradien(_ev=None):
     wadah = document["gradien"]
     kosongkan(wadah)
-    wadah <= html.P("Menghitung ulang setiap turunan dengan selisih hingga…", Class="catatan")
+    wadah <= html.P(tr("menghitung_ulang"), Class="catatan")
 
     def kerjakan():
         hasil = K.jaringan.periksa_gradien(K.data())
@@ -1026,23 +1064,19 @@ def jalankan_periksa_gradien(_ev=None):
         kosongkan(wadah)
 
         lencana = html.SPAN(
-            "LOLOS" if hasil["lolos"] else "GAGAL",
+            tr("lolos") if hasil["lolos"] else tr("gagal"),
             Class="lencana lencana--%s" % ("benar" if hasil["lolos"] else "salah"),
         )
         ringkas = html.P()
         ringkas <= lencana
         ringkas <= html.SPAN(
-            "  Galat relatif terburuk %s pada %d parameter. Ambangnya 1e-5."
+            tr("ringkas_gradien")
             % (ilmiah(hasil["terburuk"], 3), len(hasil["rincian"]))
         )
         wadah <= ringkas
 
         wadah <= html.P(
-            "Perambatan balik menghitung turunan dengan aturan rantai; selisih "
-            "hingga menghitungnya dengan menggeser bobotnya sedikit lalu melihat "
-            "galatnya berubah berapa. Keduanya harus sepakat. Kalau tidak, "
-            "perambatan baliknya salah — dan jaringan yang gradiennya salah tetap "
-            "sering terlihat belajar, hanya berhenti di tempat yang keliru.",
+            tr("catatan_gradien"),
             Class="catatan",
         )
 
@@ -1051,7 +1085,7 @@ def jalankan_periksa_gradien(_ev=None):
         bungkus = html.DIV(Class="gulir-x")
         t = html.TABLE()
         kepala = html.TR()
-        for h in ("parameter", "nilai", "perambatan balik", "selisih hingga", "galat relatif"):
+        for h in (tr("kolom_parameter"), tr("kolom_nilai"), tr("kolom_perambatan"), tr("kolom_selisih"), tr("kolom_relatif")):
             kepala <= html.TH(h)
         t <= html.THEAD(kepala)
         isi = html.TBODY()
@@ -1077,7 +1111,7 @@ def jalankan_periksa_gradien(_ev=None):
 
         if len(rincian) > 14:
             wadah <= html.P(
-                "Menampilkan 14 dari %d parameter, diurutkan dari galat terbesar."
+                tr("menampilkan_sebagian")
                 % len(rincian),
                 Class="catatan",
             )
@@ -1146,7 +1180,7 @@ def gambar_jejak(jejak):
                     opacity="0.5",
                 )
 
-    nama_lapis = ["masukan"] + ["tersembunyi"] * (len(ukuran) - 2) + ["keluaran"]
+    nama_lapis = [tr("lapis_masukan")] + [tr("lapis_tersembunyi")] * (len(ukuran) - 2) + [tr("lapis_keluaran")]
     for lap in range(len(ukuran)):
         x, _ = titik(lap, 0)
         t = svg("text", x="%.1f" % x, y=20, text_anchor="middle", font_size=10,
@@ -1190,12 +1224,7 @@ def gambar_jejak(jejak):
                 s <= td
 
     terang = (
-        "Angka di dalam lingkaran adalah keluaran neuron itu pada perambatan "
-        "maju. Bulatan di bawahnya adalah delta \u2014 bagian galat yang sampai ke "
-        "neuron itu pada perambatan balik; makin besar bulatannya makin besar "
-        "pengaruhnya, dan warnanya menyatakan arahnya. Garis di antara neuron "
-        "adalah bobot yang sama untuk kedua arah, dan justru itulah seluruh "
-        "gagasan perambatan balik."
+        tr("terang_jejak")
     )
     return s, terang, T
 
@@ -1205,7 +1234,7 @@ def tabel_jejak(jejak):
     bungkus = html.DIV(Class="gulir-x")
     t = html.TABLE()
     kepala = html.TR()
-    for h in ("neuron", "jumlah berbobot z", "keluaran a = f(z)", "delta", "gradien bias"):
+    for h in (tr("kolom_neuron"), tr("kolom_z"), tr("kolom_a"), tr("kolom_delta"), tr("kolom_gradien_bias")):
         kepala <= html.TH(h)
     t <= html.THEAD(kepala)
     isi = html.TBODY()
@@ -1264,7 +1293,7 @@ def gambar_langkah(_ev=None):
     wadah <= pemilih
 
     wadah <= html.P(
-        "Masukan (%s, %s), sasaran %s, ramalan %s \u2014 galat contoh ini %s."
+        tr("ringkas_jejak")
         % (
             n(x[0], 3),
             n(x[1], 3),
@@ -1277,24 +1306,20 @@ def gambar_langkah(_ev=None):
 
     s_jejak, t_jejak, tinggi = gambar_jejak(jejak)
     wadah <= gambar(
-        "Satu contoh melewati jaringan, maju lalu balik",
+        tr("judul_jejak"),
         t_jejak,
         s_jejak,
         620,
         tinggi,
         [
-            ("var(--positif)", "bobot positif"),
-            ("var(--negatif)", "bobot negatif / delta negatif"),
-            ("var(--aksen)", "delta positif"),
+            ("var(--positif)", tr("bobot_positif")),
+            ("var(--negatif)", tr("bobot_negatif_delta")),
+            ("var(--aksen)", tr("delta_positif")),
         ],
     )
     wadah <= tabel_jejak(jejak)
     wadah <= html.P(
-        "Angka-angka ini bukan tiruan yang dihitung khusus untuk ditampilkan. "
-        "Uji test_telusuri_sama_dengan_gradien membandingkannya dengan gradien "
-        "yang benar-benar dipakai melatih \u2014 pola bit demi pola bit, pada empat "
-        "aktivasi dan empat bentuk jaringan. Termasuk membedakan nol positif "
-        "dari nol negatif, yang pernah membuat keduanya berbeda.",
+        tr("catatan_jejak"),
         Class="catatan",
     )
 
@@ -1356,7 +1381,7 @@ def jalankan_konformansi(_ev=None):
 
     wadah = document["konformansi"]
     kosongkan(wadah)
-    wadah <= html.P("Mengambil berkas vektor…", Class="catatan")
+    wadah <= html.P(tr("mengambil_vektor"), Class="catatan")
 
     # Vektornya diambil sekarang, bukan saat halaman dibuka.
     #
@@ -1398,8 +1423,7 @@ def muat_vektor_lalu(lanjut):
         wadah = document["konformansi"]
         kosongkan(wadah)
         wadah <= html.P(
-            "Berkas vektor gagal diambil, jadi tidak ada yang bisa diperiksa. "
-            "Periksa sambungan jaringan lalu coba lagi.",
+            tr("vektor_gagal"),
             Class="galat",
         )
 
@@ -1425,7 +1449,7 @@ def mulai_pemeriksaan():
     batang.setAttribute("aria-valuemin", "0")
     batang.setAttribute("aria-valuemax", "100")
     batang.setAttribute("aria-valuenow", "0")
-    keterangan = html.P("Memeriksa…", Class="catatan")
+    keterangan = html.P(tr("memeriksa"), Class="catatan")
     wadah <= keterangan
     wadah <= batang
 
@@ -1452,7 +1476,7 @@ def mulai_pemeriksaan():
             persen = int(100 * bertahap.baris_selesai / total) if total else 0
             isi_batang.style.width = "%d%%" % persen
             batang.setAttribute("aria-valuenow", str(persen))
-            keterangan.text = "Memeriksa… %d baris vektor, %d pernyataan." % (
+            keterangan.text = tr("memeriksa_maju") % (
                 bertahap.baris_selesai,
                 bertahap.laporan.total,
             )
@@ -1473,22 +1497,22 @@ def tampilkan_konformansi(laporan, lama_ms):
     lolos = laporan.lolos
     ringkas = html.P()
     ringkas <= html.SPAN(
-        "COCOK" if lolos else "TIDAK COCOK",
+        tr("cocok") if lolos else tr("tidak_cocok"),
         Class="lencana lencana--%s" % ("benar" if lolos else "salah"),
     )
     ringkas <= html.SPAN(
-        "  %d pernyataan diperiksa di peramban ini dalam %s detik, %d tidak cocok."
+        tr("ringkas_konformansi")
         % (laporan.total, n(lama_ms / 1000.0, 2), laporan.total_gagal)
     )
     wadah <= ringkas
 
     for pesan in laporan.galat_muat:
-        wadah <= html.P("Vektor tidak terbaca — " + pesan, Class="galat")
+        wadah <= html.P(tr("vektor_tak_terbaca") + pesan, Class="galat")
 
     bungkus = html.DIV(Class="gulir-x")
     t = html.TABLE()
     kepala = html.TR()
-    for h in ("berkas vektor", "pernyataan", "keterbandingan", "ULP maks", "hasil"):
+    for h in (tr("kolom_berkas"), tr("kolom_pernyataan"), tr("kolom_keterbandingan"), tr("kolom_ulp"), tr("kolom_hasil")):
         kepala <= html.TH(h)
     t <= html.THEAD(kepala)
     isi = html.TBODY()
@@ -1498,7 +1522,7 @@ def tampilkan_konformansi(laporan, lama_ms):
         baris <= html.TD(str(b.diperiksa), Class="num")
         baris <= html.TD(b.tingkat)
         baris <= html.TD(str(b.ulp_maks), Class="num")
-        baris <= html.TD("cocok" if b.lolos else "%d GAGAL" % b.gagal)
+        baris <= html.TD("cocok" if b.lolos else tr("n_gagal") % b.gagal)
         isi <= baris
     t <= isi
     bungkus <= t
@@ -1506,13 +1530,13 @@ def tampilkan_konformansi(laporan, lama_ms):
 
     if laporan.ketidakcocokan:
         wadah <= html.P(
-            "Pola bit yang berbeda — harapan diambil dari vektor Rust:",
+            tr("pola_berbeda"),
             Class="catatan",
         )
         bungkus2 = html.DIV(Class="gulir-x")
         t2 = html.TABLE()
         kepala2 = html.TR()
-        for h in ("baris", "yang diuji", "harap", "dapat", "ULP"):
+        for h in (tr("kolom_baris"), tr("kolom_diuji"), tr("kolom_harap"), tr("kolom_dapat"), "ULP"):
             kepala2 <= html.TH(h)
         t2 <= html.THEAD(kepala2)
         isi2 = html.TBODY()
@@ -1553,52 +1577,26 @@ def tampilkan_konformansi(laporan, lama_ms):
 
     if ulp_bit == 0 and (ulp_dekat or ulp_batal):
         wadah <= html.P(
-            "Perhatikan kolom ULP maks. Seluruh berkas BitExact nol \u2014 di situ "
-            "memang tidak boleh ada selisih sedikit pun, dan tidak ada. Yang "
-            "bukan nol semuanya jatuh di berkas yang tingkat keterbandingannya "
-            "sudah menyatakan kelonggaran di muka.",
+            tr("ulp_bitexact"),
             Class="catatan",
         )
 
     if ulp_dekat:
         wadah <= html.P(
-            "Berkas NearlyEqual(4) meleset sampai %d ULP. IEEE-754 mewajibkan "
-            "penjumlahan, pengurangan, perkalian, pembagian, dan akar kuadrat "
-            "dibulatkan dengan benar \u2014 tetapi tidak exp, log, maupun pow. Python "
-            "di peramban menghitung ketiganya lewat pustaka matematika "
-            "JavaScript, yang menempuh jalan berbeda dari pustaka C yang dipakai "
-            "CPython di CI. Di CI angka ini nol; di sini tidak. Keduanya benar."
+            tr("ulp_nearly")
             % ulp_dekat,
             Class="catatan",
         )
 
     if ulp_batal:
         wadah <= html.P(
-            "Dan perhatikan ml_gain.tsv: %d ULP, jauh di luar empat \u2014 tetapi "
-            "tetap cocok. Bukan kelonggaran yang dilebarkan diam-diam. "
-            "CancellingDifference mengukur toleransinya pada skala masukan, "
-            "bukan pada hasil. Perolehan informasi adalah selisih dua entropi "
-            "yang hampir sama besar; pengurangan seperti itu membuang digit "
-            "berarti di depan dan memperbesar galat relatifnya berlipat-lipat, "
-            "sampai puluhan kali. Menuntut ketepatan pada hasilnya adalah "
-            "menuntut sesuatu yang tidak dimiliki angka mana pun di sana. Angka "
-            "%d inilah pembalikan yang paling jelas: di CPython ia nol, dan "
-            "tingkat keterbandingan ini yang membuat perbedaannya terlihat "
-            "sebagai keterangan alih-alih sebagai kegagalan."
+            tr("ulp_cancelling")
             % (ulp_batal, ulp_batal),
             Class="catatan",
         )
 
     wadah <= html.P(
-        "Angkanya berpindah antar bahasa sebagai pola bit heksadesimal 16 digit, "
-        "bukan sebagai desimal. “BitExact” menuntut kecocokan sampai bit "
-        "terakhir. “NearlyEqual(4)” memberi kelonggaran empat ULP, dan hanya "
-        "untuk perhitungan yang menyentuh exp atau log — IEEE-754 memang tidak "
-        "mewajibkan keduanya dibulatkan dengan benar. "
-        "“CancellingDifference(4)” mengukur kelonggarannya pada skala masukan, "
-        "bukan pada hasil: perolehan informasi adalah selisih dua entropi yang "
-        "hampir sama besar, dan pengurangan seperti itu memperbesar galat "
-        "relatifnya berlipat-lipat.",
+        tr("catatan_tingkat"),
         Class="catatan",
     )
 
@@ -1653,10 +1651,7 @@ def satu_potongan():
         # tidak pernah tercapai. Ia tetap ada karena berhenti dengan pesan
         # yang jujur lebih baik daripada menggambar NaN di setiap gambar.
         K.pesan = (
-            "Pelatihan menghasilkan nilai yang tidak berhingga pada epoch %d dan "
-            "dihentikan. Ini tidak diharapkan terjadi pada arsitektur ini — "
-            "kalau Anda melihatnya, setelan yang Anda pakai menemukan sesuatu "
-            "yang belum pernah terukur. Ulang dari awal untuk melanjutkan."
+            tr("pelatihan_takhingga")
             % K.epoch
         )
         perbarui_tombol()
@@ -1673,7 +1668,7 @@ def satu_potongan():
 
 
 def perbarui_tombol():
-    document["mulai"].text = "Berhenti" if K.melatih else "Latih"
+    document["mulai"].text = tr("berhenti") if K.melatih else tr("latih")
 
 
 def toggle_latih(_ev):
@@ -1792,19 +1787,16 @@ def gambar_kontrol():
         gambar_ulang()
 
     kontrol <= kartu(
-        "Masalah",
+        tr("kartu_masalah"),
         tombol_pilihan(
-            "Kumpulan data",
+            tr("kumpulan_data"),
             [(k, v[0]) for k, v in DATASET.items()]
-            + ([("sendiri", "Data sendiri")] if K.data_sendiri else []),
+            + ([("sendiri", tr("data_sendiri"))] if K.data_sendiri else []),
             K.dataset,
             set_dataset,
         ),
         html.P(
-            "XOR dan cincin tidak terpisahkan garis lurus mana pun. Setel neuron "
-            "tersembunyi ke nol pada keduanya, dan perhatikan jaringannya berhenti "
-            "di sekitar setengah — itulah temuan Minsky dan Papert yang "
-            "menghentikan penelitian bidang ini hampir dua dekade.",
+            tr("catatan_masalah"),
             Class="catatan",
         ),
     )
@@ -1812,21 +1804,21 @@ def gambar_kontrol():
     kontrol <= kartu_data_sendiri()
 
     kontrol <= kartu(
-        "Bentuk jaringan",
+        tr("kartu_bentuk"),
         bidang_geser(
-            "Neuron tersembunyi", 0, 8, 1, K.tersembunyi,
-            "Nol berarti perceptron satu lapis, tanpa lapis tersembunyi sama sekali.",
+            tr("neuron_tersembunyi"), 0, 8, 1, K.tersembunyi,
+            tr("bantuan_tersembunyi"),
             set_tersembunyi, lambda v: str(int(v)),
         ),
         tombol_pilihan(
-            "Aktivasi lapis tersembunyi",
+            tr("aktivasi_tersembunyi"),
             [(k, k) for k in AKTIVASI],
             K.aktivasi,
             set_aktivasi,
         ),
         bidang_geser(
-            "Benih bobot awal", 1, 200, 1, K.benih,
-            "Benih yang sama menghasilkan bobot awal yang sama persis, sehingga hasil pelatihannya bisa diulang dan dibandingkan.",
+            tr("benih_awal"), 1, 200, 1, K.benih,
+            tr("bantuan_benih"),
             set_benih, lambda v: str(int(v)),
         ),
     )
@@ -1839,15 +1831,13 @@ def gambar_kontrol():
         gambar_ulang()
 
     kartu_cacat = kartu(
-        "Sabotase",
+        tr("kartu_sabotase"),
         html.P(
-            "Halaman ini menyatakan bahwa jaringan yang gradiennya salah tetap "
-            "sering terlihat belajar. Jangan percayai itu — nyalakan salah "
-            "satu cacat di bawah, latih, lalu perhatikan kurva galatnya.",
+            tr("ajakan_sabotase"),
             Class="catatan",
         ),
         tombol_pilihan(
-            "Cacat perambatan balik",
+            tr("cacat_perambatan"),
             [(k, v[0]) for k, v in CACAT.items()],
             K.cacat,
             set_cacat,
@@ -1857,24 +1847,22 @@ def gambar_kontrol():
     kartu_cacat <= html.P(penjelasan, Class="catatan")
     if K.cacat != "tidak_ada":
         kartu_cacat <= html.P(
-            "Pemeriksa gradien %s cacat ini."
-            % ("MENANGKAP" if tertangkap else "TIDAK BISA menangkap"),
+            tr("pemeriksa_menangkap")
+            % (tr("menangkap") if tertangkap else tr("tidak_menangkap")),
             Class="lencana lencana--%s" % ("benar" if tertangkap else "salah"),
         )
         kartu_cacat <= html.P(
-            "Sebuah jaringan pembanding dengan bobot awal yang sama persis dan "
-            "perambatan balik yang benar ikut dilatih berdampingan. Ia muncul "
-            "sebagai garis putus-putus di kurva galat.",
+            tr("catatan_pembanding"),
             Class="catatan",
         )
     kontrol <= kartu_cacat
 
     kontrol <= kartu(
-        "Pelatihan",
-        bidang_geser("Laju belajar", 0.01, 5.0, 0.01, K.laju, None, set_laju),
+        tr("kartu_pelatihan"),
+        bidang_geser(tr("laju_belajar"), 0.01, 5.0, 0.01, K.laju, None, set_laju),
         bidang_geser(
-            "Momentum", 0.0, 0.99, 0.01, K.momentum,
-            "Momentum menjumlahkan langkah sebelumnya, sehingga langkah tunaknya laju ÷ (1 − momentum).",
+            tr("momentum"), 0.0, 0.99, 0.01, K.momentum,
+            tr("bantuan_momentum"),
             set_momentum,
         ),
         html.DIV(id="peringatan"),
@@ -1883,13 +1871,13 @@ def gambar_kontrol():
     kontrol <= kartu_berbagi()
 
     baris = html.DIV(Class="baris")
-    b_mulai = html.BUTTON("Latih", Class="tombol tombol--utama", type="button", id="mulai")
+    b_mulai = html.BUTTON(tr("latih"), Class="tombol tombol--utama", type="button", id="mulai")
     b_mulai.bind("click", toggle_latih)
     baris <= b_mulai
-    b_satu = html.BUTTON("Satu epoch", Class="tombol", type="button")
+    b_satu = html.BUTTON(tr("satu_epoch"), Class="tombol", type="button")
     b_satu.bind("click", satu_epoch)
     baris <= b_satu
-    b_ulang = html.BUTTON("Ulang dari awal", Class="tombol", type="button")
+    b_ulang = html.BUTTON(tr("ulang_awal"), Class="tombol", type="button")
     b_ulang.bind("click", ulang)
     baris <= b_ulang
     kontrol <= baris
@@ -1915,12 +1903,9 @@ def kartu_data_sendiri():
     ini: *apakah ini bekerja pada data saya.* Menjawab pertanyaan itu menuntut
     data mereka, bukan data kami.
     """
-    k = kartu("Data sendiri")
+    k = kartu(tr("data_sendiri"))
     k <= html.P(
-        "Tempelkan tiga kolom: dua angka masukan dan satu kelas (0 atau 1). "
-        "Pemisahnya boleh koma, titik koma, tab, atau spasi \u2014 dan koma "
-        "desimal gaya Indonesia diterima. Angkanya akan diskalakan ke rentang "
-        "0 sampai 1, dan rentang aslinya diberitahukan.",
+        tr("petunjuk_data"),
         Class="catatan",
     )
 
@@ -1929,14 +1914,14 @@ def kartu_data_sendiri():
     kotak.setAttribute(
         "placeholder", "165; 55,0; 0\n170; 60,5; 0\n175; 72,0; 1\n180; 85,5; 1"
     )
-    kotak.setAttribute("aria-label", "Tempelkan data Anda di sini")
+    kotak.setAttribute("aria-label", tr("label_tempel"))
     k <= kotak
 
     baris = html.DIV(Class="baris")
-    b_pakai = html.BUTTON("Pakai data ini", Class="tombol tombol--utama", type="button")
+    b_pakai = html.BUTTON(tr("pakai_data"), Class="tombol tombol--utama", type="button")
     b_pakai.bind("click", pakai_data_sendiri)
     baris <= b_pakai
-    b_contoh = html.BUTTON("Isi contoh", Class="tombol", type="button")
+    b_contoh = html.BUTTON(tr("isi_contoh"), Class="tombol", type="button")
     b_contoh.bind("click", isi_contoh_data)
     baris <= b_contoh
     k <= baris
@@ -1949,7 +1934,7 @@ def isi_contoh_data(_ev=None):
     document["data-sendiri"].value = pengurai_data.CONTOH
     kosongkan(document["kabar-data"])
     document["kabar-data"] <= html.SPAN(
-        "Contoh diisi \u2014 tekan \u201cPakai data ini\u201d.", Class="kabar"
+        tr("contoh_terisi"), Class="kabar"
     )
 
 
@@ -1981,7 +1966,7 @@ def pakai_data_sendiri(_ev=None):
 
     kabar = document["kabar-data"]
     kabar <= html.P(
-        "%d baris dipakai." % len(hasil["data"]),
+        tr("baris_dipakai") % len(hasil["data"]),
         Class="kabar kabar--benar",
     )
     for c in hasil["catatan"]:
@@ -2021,10 +2006,10 @@ def unduh_csv(_ev=None):
         baris = ekspor.laporan_baris(K, _KONFORM.get("gradien_terakhir"))
         nama = ekspor.nama_berkas(K, "csv")
         unduh(nama, ekspor.csv(baris), "text/csv;charset=utf-8")
-        wadah <= html.SPAN("Diunduh: %s" % nama, Class="kabar kabar--benar")
+        wadah <= html.SPAN(tr("diunduh") % nama, Class="kabar kabar--benar")
     except Exception as galat:  # noqa: BLE001 - unduhan bisa ditolak peramban
         wadah <= html.SPAN(
-            "Peramban menolak unduhan: %s" % galat, Class="kabar"
+            tr("unduhan_ditolak") % galat, Class="kabar"
         )
 
 
@@ -2050,31 +2035,25 @@ def kartu_berbagi():
     Keduanya di satu kartu karena keduanya menjawab pertanyaan yang sama:
     bagaimana keadaan halaman ini bertahan di luar sesi sekarang.
     """
-    k = kartu("Bagikan dan tampilan")
+    k = kartu(tr("kartu_berbagi"))
     k <= html.P(
-        "Alamat di bilah alamat selalu mencerminkan setelan sekarang. Siapa pun "
-        "yang membukanya akan mendapat jaringan yang sama persis \u2014 benih yang "
-        "sama berarti bobot awal yang sama, dan pelatihan yang sama bisa diulang. "
-        "Itu bukan kenyamanan tambahan melainkan syarat: hasil yang tidak bisa "
-        "diulang tidak bisa diperiksa siapa pun.",
+        tr("catatan_tautan"),
         Class="catatan",
     )
-    b = html.BUTTON("Salin tautan setelan ini", Class="tombol", type="button")
+    b = html.BUTTON(tr("salin_tautan"), Class="tombol", type="button")
     b.bind("click", salin_tautan)
     k <= b
     k <= html.DIV(id="kabar-tautan", Class="kabar-wadah")
 
     k <= html.P(
-        "Unduh seluruh hasilnya \u2014 setelan, ramalan tiap titik, bobot, kurva "
-        "galat, dan pemeriksaan gradien kalau sudah dijalankan \u2014 sebagai satu "
-        "berkas yang bisa dibuka Excel, atau cetak halamannya menjadi PDF.",
+        tr("catatan_ekspor"),
         Class="catatan",
     )
     baris_ekspor = html.DIV(Class="baris")
-    b_csv = html.BUTTON("Unduh CSV (Excel)", Class="tombol", type="button")
+    b_csv = html.BUTTON(tr("unduh_csv"), Class="tombol", type="button")
     b_csv.bind("click", unduh_csv)
     baris_ekspor <= b_csv
-    b_cetak = html.BUTTON("Cetak / simpan PDF", Class="tombol", type="button")
+    b_cetak = html.BUTTON(tr("cetak_pdf"), Class="tombol", type="button")
     b_cetak.bind("click", cetak)
     baris_ekspor <= b_cetak
     k <= baris_ekspor
@@ -2083,7 +2062,11 @@ def kartu_berbagi():
     def set_tema(v):
         pasang_tema(v)
 
-    k <= tombol_pilihan("Tema", TEMA, K.tema, set_tema)
+    def set_bahasa(v):
+        pasang_bahasa(v)
+
+    k <= tombol_pilihan(tr("bahasa"), BAHASA, K.bahasa, set_bahasa)
+    k <= tombol_pilihan(tr("tema"), pilihan_tema(), K.tema, set_tema)
     return k
 
 
@@ -2091,7 +2074,7 @@ def perbarui_peringatan():
     wadah = document["peringatan"]
     kosongkan(wadah)
     efektif = K.jaringan.laju_efektif(K.laju, K.momentum)
-    teks = "Laju efektif %s = %s ÷ (1 − %s)." % (n(efektif, 3), n(K.laju, 2), n(K.momentum, 2))
+    teks = tr("laju_efektif") % (n(efektif, 3), n(K.laju, 2), n(K.momentum, 2))
     if efektif > AMBANG_LAJU:
         # Perhatikan yang **tidak** dikatakan di sini: bahwa angkanya meluap.
         # Lapis keluaran jaringan ini sigmoid, sehingga galatnya terkurung di
@@ -2099,11 +2082,7 @@ def perbarui_peringatan():
         # gagalnya berbeda, dan menyebut cara gagal yang keliru membuat
         # pembaca mencari gejala yang tidak akan pernah muncul.
         wadah <= html.P(
-            teks + " Sebesar ini pelatihan biasanya tidak meledak melainkan macet: "
-            "keluarannya jenuh di 0 atau 1, turunan sigmoidnya nyaris nol, dan "
-            "galatnya berhenti di satu angka sambil jaringan menjawab sama untuk "
-            "setiap masukan. Jalankan dan perhatikan — kurvanya mendatar, bukan "
-            "meroket.",
+            teks + tr("peringatan_laju"),
             Class="galat",
         )
     else:
@@ -2125,6 +2104,7 @@ def mulai():
     # Tema dipasang sebelum apa pun tergambar, supaya kanvas membaca warna yang
     # benar sejak gambar pertama alih-alih berkedip sekali. Kanvas menyimpan
     # piksel; SVG di sekelilingnya mengikuti CSS dengan sendirinya.
+    pasang_bahasa(bahasa_tersimpan(), gambar_lagi=False)
     pasang_tema(tema_tersimpan(), gambar_lagi=False)
     tulis_tautan()
     gambar_kontrol()
@@ -2134,7 +2114,14 @@ def mulai():
     window.addEventListener("hashchange", terapkan_tautan)
     # Angka ini dihitung, bukan diketik: kalau modul fx berubah dan pola bitnya
     # bergeser, teks di halaman ikut bergeser dan perbedaannya terlihat.
-    document["bukti-bit"].text = fx.ke_hex(0.1)
+    # Prosa tetap ditulis dua kali, jadi tempat menaruh pola bitnya juga ada
+    # dua. Mengisi salah satunya saja akan menghasilkan kalimat yang berhenti
+    # di tengah — dan hanya pada bahasa yang tidak diperiksa penulisnya.
+    pola = fx.ke_hex(0.1)
+    for id_bukti in ("bukti-bit", "bukti-bit-en"):
+        simpul = document.select_one("#" + id_bukti)
+        if simpul is not None:
+            simpul.text = pola
 
 
 mulai()

@@ -20,7 +20,7 @@ const DIST = join(AKAR, "dist");
 // Angkanya diikat ke ukuran sekarang plus sedikit ruang, bukan dipilih
 // longgar. Anggaran yang jauh di atas kenyataan tidak pernah gagal, dan
 // anggaran yang tidak pernah gagal tidak mengukur apa pun.
-const ANGGARAN = { ".js": 275, ".css": 8, ".html": 10 };
+const ANGGARAN = { ".js": 285, ".css": 9, ".html": 14 };
 
 // Yang dihitung hanya berkas yang benar-benar diambil saat halaman dibuka.
 // vektor_vfs.js sengaja tidak termasuk: ia baru diambil kalau pengunjung
@@ -36,7 +36,7 @@ const DIKECUALIKAN = new Set(["vendor/vektor_vfs.js"]);
 // Anggaran yang tidak pernah gagal tidak mengukur apa pun. Ia dinaikkan hanya
 // bersama perubahan yang memang menambah kemampuan — terakhir saat pengurai
 // data tempelan dan penyusun laporan CSV masuk.
-const ANGGARAN_TOTAL = 345;
+const ANGGARAN_TOTAL = 360;
 
 function semuaBerkas(dir) {
   const keluar = [];
@@ -115,7 +115,7 @@ for (const wajib of [
 // konformansi yang membutuhkannya.
 const WAJIB_AWAL = [
   "nusa", "nusa.fx", "nusa.inti", "nusa.jaringan",
-  "nusa.tautan", "nusa.data", "nusa.ekspor", "app",
+  "nusa.tautan", "nusa.data", "nusa.ekspor", "nusa.bahasa", "app",
 ];
 const WAJIB_MALAS = ["nusa.konform", "nusa.vektor"];
 

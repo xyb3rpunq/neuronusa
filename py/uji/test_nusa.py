@@ -19,7 +19,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from nusa import data, ekspor, fx, inti, jaringan, konform, tautan  # noqa: E402
+from nusa import bahasa, data, ekspor, fx, inti, jaringan, konform, tautan  # noqa: E402
 
 VEKTOR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "..", "conformance", "vectors"
@@ -1059,6 +1059,144 @@ class UjiEkspor(unittest.TestCase):
             self.assertIn(potongan, nama)
         K.cacat = "tanda_terbalik"
         self.assertIn("tanda_terbalik", ekspor.nama_berkas(K))
+
+
+class UjiBahasa(unittest.TestCase):
+    """Memeriksa kamus dwibahasa.
+
+    Terjemahan yang hilang tidak pernah menabrak. Ia muncul sebagai teks kosong
+    di tempat yang seharusnya berisi satu paragraf — dan yang hilang hampir
+    selalu bahasa yang tidak dipakai penulisnya sehari-hari, sehingga
+    penulisnya sendiri tidak akan pernah melihatnya. Yang bisa melihatnya hanya
+    uji.
+    """
+
+    #: Kunci yang kedua bahasanya memang sama, dan sah begitu.
+    #:
+    #: "Momentum", "parameter", "neuron", dan "delta" adalah kata yang sama di
+    #: kedua bahasa. Memaksanya berbeda akan menghasilkan terjemahan yang
+    #: mengada-ada, dan terjemahan yang mengada-ada lebih buruk daripada tidak
+    #: menerjemahkan.
+    BOLEH_SAMA = {"momentum", "kolom_parameter", "kolom_neuron", "kolom_delta"}
+
+    def test_setiap_kunci_punya_dua_bahasa(self):
+        for kunci, nilai in bahasa.TEKS.items():
+            self.assertIsInstance(nilai, tuple, kunci)
+            self.assertEqual(len(nilai), 2, kunci)
+            for teks in nilai:
+                self.assertIsInstance(teks, str, kunci)
+                self.assertTrue(teks.strip(), "%s: ada yang kosong" % kunci)
+
+    def test_kedua_bahasa_benar_benar_berbeda(self):
+        """Menyalin teks Indonesia ke kolom Inggris lolos setiap uji lain.
+
+        Ia menghasilkan situs yang mengaku dwibahasa padahal menampilkan satu
+        bahasa dua kali, dan tidak ada pemeriksaan panjang atau bentuk yang
+        bisa membedakannya dari terjemahan sungguhan.
+        """
+        for kunci, (indo, eng) in bahasa.TEKS.items():
+            if kunci in self.BOLEH_SAMA:
+                continue
+            self.assertNotEqual(indo, eng, "kunci %r belum diterjemahkan" % kunci)
+
+    def test_penanda_format_sama_di_kedua_bahasa(self):
+        """Terjemahan yang kehilangan satu ``%d`` melempar saat digambar.
+
+        Dan hanya pada bahasa yang tidak dipakai penulisnya, yaitu tepat
+        bahasa yang tidak akan pernah ia buka.
+        """
+        import re
+
+        pola = re.compile(r"%[-0-9.]*[a-zA-Z]")
+        for kunci, (indo, eng) in bahasa.TEKS.items():
+            self.assertEqual(
+                pola.findall(indo),
+                pola.findall(eng),
+                "penanda format berbeda pada kunci %r" % kunci,
+            )
+
+    def test_tanda_persen_harfiah_tidak_ada(self):
+        """``%`` harfiah harus ditulis ``%%``, kalau tidak ia dibaca penanda.
+
+        Sebuah kalimat yang memuat "100%" tanpa penggandaan akan melempar
+        ``ValueError: unsupported format character`` saat diformat — dan hanya
+        pada kalimat yang kebetulan memuatnya.
+        """
+        import re
+
+        for kunci, pasangan in bahasa.TEKS.items():
+            for teks in pasangan:
+                # Setiap % harus diikuti penanda yang sah atau % lagi.
+                for cocok in re.finditer(r"%(.?)", teks):
+                    berikut = cocok.group(1)
+                    self.assertTrue(
+                        berikut == "%" or berikut in "sdfegxo.-0123456789",
+                        "kunci %r: %% diikuti %r" % (kunci, berikut),
+                    )
+
+    def test_mengganti_bahasa_mengganti_keluaran(self):
+        semula = bahasa.sekarang()
+        try:
+            bahasa.atur("id")
+            indo = bahasa.t("latih")
+            bahasa.atur("en")
+            eng = bahasa.t("latih")
+            self.assertNotEqual(indo, eng)
+            self.assertEqual(indo, "Latih")
+            self.assertEqual(eng, "Train")
+        finally:
+            bahasa.atur(semula)
+
+    def test_kode_yang_tidak_dikenal_diabaikan(self):
+        semula = bahasa.sekarang()
+        try:
+            bahasa.atur("id")
+            bahasa.atur("kl")
+            # Bahasa yang tidak dikenal tidak boleh membuat halaman kosong;
+            # yang lama tetap dipakai.
+            self.assertEqual(bahasa.sekarang(), "id")
+            self.assertFalse(bahasa.kode_sah("kl"))
+            self.assertFalse(bahasa.kode_sah(None))
+        finally:
+            bahasa.atur(semula)
+
+    def test_kunci_yang_tidak_ada_melempar(self):
+        """Kunci salah ketik harus berhenti berisik, bukan jadi teks kosong."""
+        with self.assertRaises(KeyError):
+            bahasa.t("kunci-yang-tidak-pernah-ada")
+
+    def test_nama_bahasa_ditulis_dalam_bahasanya_sendiri(self):
+        nama = dict(bahasa.BAHASA)
+        self.assertEqual(nama["id"], "Indonesia")
+        # "English", bukan "Inggris": pemilih bahasa dibaca justru oleh orang
+        # yang belum tentu paham bahasa yang sedang aktif.
+        self.assertEqual(nama["en"], "English")
+
+    def test_seluruh_kunci_yang_dipakai_app_ada_di_kamus(self):
+        """Kamus dan pemakaiannya harus sepadan, dua arah.
+
+        Kunci yang dipakai tetapi tidak ada melempar ``KeyError`` di tengah
+        penggambaran. Kunci yang ada tetapi tidak dipakai adalah terjemahan
+        yang dirawat tanpa alasan — dan menandakan sebuah teks pernah dihapus
+        dari antarmuka tanpa kamusnya ikut dibersihkan.
+        """
+        import os
+        import re
+
+        jalur = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "app.py"
+        )
+        with open(jalur, "r", encoding="utf-8") as f:
+            kode = f.read()
+
+        dipakai = set(re.findall(r'\btr\("([^"]+)"\)', kode))
+        tersedia = set(bahasa.TEKS)
+
+        hilang = sorted(dipakai - tersedia)
+        self.assertEqual(hilang, [], "dipakai app.py tetapi tidak ada di kamus")
+
+        menganggur = sorted(tersedia - dipakai)
+        self.assertEqual(menganggur, [], "ada di kamus tetapi tidak dipakai app.py")
 
 
 class UjiTautan(unittest.TestCase):
