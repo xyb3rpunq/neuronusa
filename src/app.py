@@ -734,28 +734,8 @@ def gambar_ulang(berat=True):
         kotak <= html.DIV(macet, Class="hasil__tafsir")
 
     if K.cacat != "tidak_ada" and K.bayangan is not None:
-        label, _tempat, tertangkap, _p = CACAT[K.cacat]
-        galat_benar = K.bayangan.galat(data)
-        benar_bayangan = sum(
-            1 for x, t in data if round(K.bayangan.ramal(x)[0]) == int(t[0])
-        )
-        kotak <= html.DIV(
-            "Cacat menyala: %s. Pembanding yang benar ada di %s dengan %d dari %d "
-            "titik benar. %s"
-            % (
-                label,
-                ilmiah(galat_benar, 4),
-                benar_bayangan,
-                len(data),
-                (
-                    "Selisihnya sekecil itu — dan pemeriksa gradien tetap "
-                    "menangkapnya."
-                    if tertangkap
-                    else "Pemeriksa gradien tidak bisa menangkap yang ini."
-                ),
-            ),
-            Class="hasil__tafsir hasil__tafsir--cacat",
-        )
+        kotak <= html.DIV(banding_cacat(data, galat, benar), Class="hasil__tafsir hasil__tafsir--cacat")
+
     ringkas <= kotak
 
     s_galat, t_galat = gambar_galat()
@@ -814,6 +794,52 @@ JENDELA_MACET = 12
 
 #: Perubahan galat di bawah ini, sepanjang jendela di atas, dianggap mandek.
 AMBANG_MACET = 1e-7
+
+
+def banding_cacat(data, galat, benar):
+    """Membandingkan jaringan yang disabotase dengan pembandingnya.
+
+    Kalimatnya dirakit dari angka yang ada, bukan ditulis di muka.
+
+    Bentuk pertamanya berbunyi "selisihnya sekecil itu" tanpa melihat
+    selisihnya sama sekali. Situs yang sudah terbit membantahnya dalam satu
+    kali coba: pada cacat "faktor dua", jaringan yang rusak berada di
+    1,1e-02 dengan empat titik benar sementara pembandingnya di 6,8e-02
+    dengan tiga. Selisihnya enam kali lipat, dan yang rusak justru yang
+    terlihat lebih baik. Kalimat yang mengasumsikan salah satu arah akan
+    salah separuh waktu.
+    """
+    label, _tempat, tertangkap, _p = CACAT[K.cacat]
+    galat_benar = K.bayangan.galat(data)
+    benar_bayangan = sum(1 for x, t in data if round(K.bayangan.ramal(x)[0]) == int(t[0]))
+
+    teks = "Cacat menyala: %s. Yang disabotase ada di %s dengan %d dari %d titik benar; pembanding yang benar di %s dengan %d. " % (
+        label,
+        ilmiah(galat, 4),
+        benar,
+        len(data),
+        ilmiah(galat_benar, 4),
+        benar_bayangan,
+    )
+
+    if K.epoch == 0:
+        teks += "Keduanya belum dilatih — tekan Latih."
+    elif galat < galat_benar:
+        teks += (
+            "Yang disabotase justru berakhir LEBIH RENDAH. Itu bukan "
+            "kebetulan yang lucu melainkan seluruh maksud halaman ini."
+        )
+    elif galat_benar < galat and benar >= benar_bayangan:
+        teks += "Keduanya sama-sama menurun, dan keduanya menjawab sama banyak."
+    else:
+        teks += "Yang disabotase tertinggal — tetapi tetap menurun."
+
+    teks += (
+        "  Pemeriksa gradien menangkap cacat ini."
+        if tertangkap
+        else "  Pemeriksa gradien tidak bisa menangkap yang ini."
+    )
+    return teks
 
 
 def diagnosa_macet(data, benar):
