@@ -1043,7 +1043,13 @@ def muat_vektor_lalu(lanjut):
         lanjut()
         return
 
-    alamat = window.URL.new("vendor/vektor_vfs.js", document.baseURI).href
+    # Alamatnya dibaca dari <meta>, bukan ditulis di sini. Perkakas build
+    # menempelkan sidik isi pada URL berkas vendor supaya penerbitan baru tidak
+    # pernah berpasangan dengan berkas lama yang masih tersimpan di singgahan
+    # peramban — dan yang tahu sidik itu hanya perkakas build.
+    penunjuk = document.select_one('meta[name="neuronusa-vektor"]')
+    rujukan = penunjuk.attrs["content"] if penunjuk else "vendor/vektor_vfs.js"
+    alamat = window.URL.new(rujukan, document.baseURI).href
     skrip = document.createElement("script")
     skrip.src = alamat
 

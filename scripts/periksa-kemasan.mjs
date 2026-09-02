@@ -161,6 +161,49 @@ if (entriVektor) {
   }
 }
 
+// --- 4. rujukan di dalam HTML -----------------------------------------------
+
+// Sidik isi pada URL vendor mencegah `index.html` yang baru berpasangan dengan
+// mesin Python yang lama dari singgahan peramban. Kegagalannya senyap dan
+// menyesatkan: antarmuka mencari elemen yang tidak ada di HTML pasangannya,
+// dan halamannya berhenti di layar "memuat".
+//
+// Diperiksa di sini karena tidak ada uji lain yang menyentuh HTML terbitan.
+{
+  const berkasHtml = readFileSync(join(DIST, "index.html"), "utf8");
+
+  const rujukanSkrip = [...berkasHtml.matchAll(/src="([^"]*vendor\/[^"]+)"/g)].map(
+    (m) => m[1],
+  );
+  if (rujukanSkrip.length !== 3) {
+    catat(`Diharapkan 3 skrip vendor di index.html, ditemukan ${rujukanSkrip.length}.`);
+  }
+  for (const url of rujukanSkrip) {
+    if (!/\?v=[0-9a-f]{12}$/.test(url)) {
+      catat(`Skrip vendor tanpa sidik isi: ${url}`);
+    }
+    if (!url.startsWith("/neuronusa/")) {
+      catat(`Skrip vendor tidak memakai base situs: ${url}`);
+    }
+  }
+
+  const meta = berkasHtml.match(/name="neuronusa-vektor"\s+content="([^"]+)"/);
+  if (!meta) {
+    catat("Meta 'neuronusa-vektor' tidak ada di index.html.");
+  } else {
+    const rujukan = meta[1];
+    if (rujukan.startsWith("/")) {
+      // Alamat yang diawali garis miring diselesaikan terhadap asal situs dan
+      // bukan terhadap base-nya, sehingga di GitHub Pages ia menunjuk ke luar
+      // /neuronusa/ dan menemui 404. Cacat ini sudah pernah terjadi.
+      catat(`Alamat vektor harus relatif, bukan diawali garis miring: ${rujukan}`);
+    }
+    if (!/\?v=[0-9a-f]{12}$/.test(rujukan)) {
+      catat(`Alamat vektor tanpa sidik isi: ${rujukan}`);
+    }
+  }
+}
+
 // --- hasil ------------------------------------------------------------------
 
 if (galat.length) {

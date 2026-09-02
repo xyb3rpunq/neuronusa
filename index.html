@@ -56,6 +56,20 @@
     <script src="/vendor/brython.min.js" defer></script>
     <script src="/vendor/brython_stdlib_mini.js" defer></script>
     <script src="/vendor/nusa_vfs.js" defer></script>
+
+    <!--
+      Alamat berkas vektor, dititipkan di sini alih-alih ditulis di dalam
+      Python. Ia diambil saat diminta, jadi ia tidak bisa menjadi skrip biasa —
+      tetapi ia tetap harus ikut disidik isi bersama berkas lainnya, dan yang
+      tahu sidiknya adalah perkakas build.
+
+      Ditulis **relatif**, tanpa garis miring di depan. Alamat yang diawali
+      garis miring diselesaikan terhadap asal situs dan bukan terhadap base-nya,
+      sehingga di GitHub Pages ia akan menunjuk ke luar /neuronusa/ dan menemui
+      404. Vite tidak menerjemahkan isi <meta>, jadi tidak ada yang akan
+      memperbaikinya di belakang layar.
+    -->
+    <meta name="neuronusa-vektor" content="vendor/vektor_vfs.js" />
     <script type="module" src="/src/nyalakan.ts"></script>
   </head>
 
