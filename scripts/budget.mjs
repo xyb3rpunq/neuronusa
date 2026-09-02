@@ -33,8 +33,10 @@ const DIKECUALIKAN = new Set(["vendor/vektor_vfs.js"]);
 // 4,6 MB, mesin jaringan syarafnya, dan halamannya sendiri.
 //
 // Angkanya diikat sedikit di atas kenyataan sekarang, bukan dipilih longgar.
-// Anggaran yang tidak pernah gagal tidak mengukur apa pun.
-const ANGGARAN_TOTAL = 330;
+// Anggaran yang tidak pernah gagal tidak mengukur apa pun. Ia dinaikkan hanya
+// bersama perubahan yang memang menambah kemampuan — terakhir saat pengurai
+// data tempelan dan penyusun laporan CSV masuk.
+const ANGGARAN_TOTAL = 345;
 
 function semuaBerkas(dir) {
   const keluar = [];
@@ -111,7 +113,10 @@ for (const wajib of [
 // Modul yang wajib ada di muatan pertama. `nusa.konform` sengaja tidak di
 // sini: ia ikut berkas yang malas bersama vektornya, karena hanya tombol
 // konformansi yang membutuhkannya.
-const WAJIB_AWAL = ["nusa", "nusa.fx", "nusa.inti", "nusa.jaringan", "nusa.tautan", "app"];
+const WAJIB_AWAL = [
+  "nusa", "nusa.fx", "nusa.inti", "nusa.jaringan",
+  "nusa.tautan", "nusa.data", "nusa.ekspor", "app",
+];
 const WAJIB_MALAS = ["nusa.konform", "nusa.vektor"];
 
 const vfs = readFileSync(join(DIST, "vendor", "nusa_vfs.js"), "utf8");

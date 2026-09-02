@@ -73,7 +73,11 @@ def _pecahan(teks, nama):
 
 #: Pemeriksa untuk tiap setelan. Kembalikan nilai bersih, atau None bila tolak.
 PEMERIKSA = {
-    "dataset": lambda t: t if t in DATASET else None,
+    # "sendiri" sah sebagai nama, tetapi datanya tidak pernah ikut ke alamat:
+    # empat ratus baris angka tidak muat di sana, dan memaksanya muat akan
+    # menghasilkan tautan yang tidak bisa dikirim lewat pesan mana pun.
+    # Halaman yang menerimanya jatuh ke XOR, bukan menabrak.
+    "dataset": lambda t: t if t in DATASET or t == "sendiri" else None,
     "aktivasi": lambda t: t if t in AKTIVASI else None,
     "cacat": lambda t: t if t in CACAT else None,
     "tersembunyi": lambda t: _bulat(t, "tersembunyi"),

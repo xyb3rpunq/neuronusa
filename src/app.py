@@ -23,7 +23,8 @@ import math
 from browser import document, html, timer, window
 from browser import svg as gambar_svg
 
-from nusa import fx, tautan
+from nusa import data as pengurai_data
+from nusa import ekspor, fx, tautan
 from nusa.jaringan import AKTIVASI, CACAT, DATASET, Jaringan
 
 # ---------------------------------------------------------------------------
@@ -306,6 +307,12 @@ class Keadaan:
         # Contoh data mana yang sedang ditelusuri langkah demi langkah.
         self.titik_jejak = 0
         self.cacat = "tidak_ada"
+        # Data tempelan pengguna, kalau ada. Disimpan terurai supaya tidak
+        # diurai ulang di tiap bingkai gambar.
+        self.data_sendiri = None
+        self.skala_sendiri = []
+        self.catatan_data = []
+        self.teks_data = ""
         # Jaringan pembanding yang perambatan baliknya benar, dilatih
         # berdampingan dengan benih dan setelan yang sama persis. Hanya ada
         # saat sebuah cacat menyala; tanpa pembanding, kurva galat jaringan
@@ -330,7 +337,18 @@ class Keadaan:
         # kali per bingkai gambar tidak mengubah hasilnya sedikit pun, hanya
         # membuang waktu di penerjemah yang sudah lambat.
         if self._data is None:
-            self._data = DATASET[self.dataset][1]()
+            if self.dataset == "sendiri":
+                # Tautan bisa menyebut "sendiri" tanpa membawa datanya —
+                # datanya jauh terlalu besar untuk sebuah alamat. Jatuh ke XOR
+                # alih-alih menabrak: pembaca tautan tidak melakukan kesalahan
+                # apa pun, ia hanya menerima tautan yang tidak lengkap.
+                if not self.data_sendiri:
+                    self.dataset = "xor"
+                    self._data = DATASET["xor"][1]()
+                else:
+                    self._data = self.data_sendiri
+            else:
+                self._data = DATASET[self.dataset][1]()
         return self._data
 
     def bangun(self):
@@ -1000,6 +1018,11 @@ def jalankan_periksa_gradien(_ev=None):
 
     def kerjakan():
         hasil = K.jaringan.periksa_gradien(K.data())
+        # Disimpan supaya laporan CSV bisa menyertakannya. Menjalankannya ulang
+        # saat mengekspor akan memakan waktu yang sama lagi, dan lebih buruk:
+        # hasilnya bisa berbeda dari yang tertera di layar kalau pelatihannya
+        # sempat berlanjut di antara keduanya.
+        _KONFORM["gradien_terakhir"] = hasil
         kosongkan(wadah)
 
         lencana = html.SPAN(
@@ -1772,7 +1795,8 @@ def gambar_kontrol():
         "Masalah",
         tombol_pilihan(
             "Kumpulan data",
-            [(k, v[0]) for k, v in DATASET.items()],
+            [(k, v[0]) for k, v in DATASET.items()]
+            + ([("sendiri", "Data sendiri")] if K.data_sendiri else []),
             K.dataset,
             set_dataset,
         ),
@@ -1784,6 +1808,8 @@ def gambar_kontrol():
             Class="catatan",
         ),
     )
+
+    kontrol <= kartu_data_sendiri()
 
     kontrol <= kartu(
         "Bentuk jaringan",
@@ -1881,6 +1907,143 @@ def gambar_kontrol():
 AMBANG_LAJU = 100.0
 
 
+def kartu_data_sendiri():
+    """Menempelkan kumpulan data sendiri.
+
+    Tiga kumpulan bawaan cukup untuk menjelaskan gagasannya dan tidak cukup
+    untuk menjawab pertanyaan yang sebenarnya dibawa orang ke halaman seperti
+    ini: *apakah ini bekerja pada data saya.* Menjawab pertanyaan itu menuntut
+    data mereka, bukan data kami.
+    """
+    k = kartu("Data sendiri")
+    k <= html.P(
+        "Tempelkan tiga kolom: dua angka masukan dan satu kelas (0 atau 1). "
+        "Pemisahnya boleh koma, titik koma, tab, atau spasi \u2014 dan koma "
+        "desimal gaya Indonesia diterima. Angkanya akan diskalakan ke rentang "
+        "0 sampai 1, dan rentang aslinya diberitahukan.",
+        Class="catatan",
+    )
+
+    kotak = html.TEXTAREA(K.teks_data, id="data-sendiri", rows=7)
+    kotak.setAttribute("spellcheck", "false")
+    kotak.setAttribute(
+        "placeholder", "165; 55,0; 0\n170; 60,5; 0\n175; 72,0; 1\n180; 85,5; 1"
+    )
+    kotak.setAttribute("aria-label", "Tempelkan data Anda di sini")
+    k <= kotak
+
+    baris = html.DIV(Class="baris")
+    b_pakai = html.BUTTON("Pakai data ini", Class="tombol tombol--utama", type="button")
+    b_pakai.bind("click", pakai_data_sendiri)
+    baris <= b_pakai
+    b_contoh = html.BUTTON("Isi contoh", Class="tombol", type="button")
+    b_contoh.bind("click", isi_contoh_data)
+    baris <= b_contoh
+    k <= baris
+
+    k <= html.DIV(id="kabar-data", Class="kabar-wadah")
+    return k
+
+
+def isi_contoh_data(_ev=None):
+    document["data-sendiri"].value = pengurai_data.CONTOH
+    kosongkan(document["kabar-data"])
+    document["kabar-data"] <= html.SPAN(
+        "Contoh diisi \u2014 tekan \u201cPakai data ini\u201d.", Class="kabar"
+    )
+
+
+def pakai_data_sendiri(_ev=None):
+    wadah = document["kabar-data"]
+    kosongkan(wadah)
+    teks = document["data-sendiri"].value
+
+    try:
+        hasil = pengurai_data.urai(teks)
+    except pengurai_data.Galat as galat:
+        # Pesannya memang ditulis untuk dibaca pengguna, jadi ditampilkan apa
+        # adanya. Menggantinya dengan "data tidak sah" akan membuang satu-
+        # satunya keterangan yang bisa menolong.
+        wadah <= html.P(str(galat), Class="galat")
+        return
+
+    K.melatih = False
+    perbarui_tombol()
+    K.teks_data = teks
+    K.data_sendiri = hasil["data"]
+    K.skala_sendiri = hasil["skala"]
+    K.catatan_data = hasil["catatan"]
+    K.dataset = "sendiri"
+    tulis_tautan()
+    K.bangun()
+    gambar_kontrol()
+    gambar_ulang()
+
+    kabar = document["kabar-data"]
+    kabar <= html.P(
+        "%d baris dipakai." % len(hasil["data"]),
+        Class="kabar kabar--benar",
+    )
+    for c in hasil["catatan"]:
+        kabar <= html.P(c, Class="catatan")
+
+
+# ---------------------------------------------------------------------------
+# Ekspor
+# ---------------------------------------------------------------------------
+
+
+def unduh(nama, teks, jenis):
+    """Menyerahkan sebuah berkas kepada pengguna.
+
+    Memakai objek URL dan bukan ``data:`` URI. Yang terakhir dibatasi panjang
+    di sebagian peramban, dan laporan dengan empat ratus baris data melewati
+    batas itu tanpa memberi tanda apa pun \u2014 unduhannya sekadar tidak terjadi.
+
+    Objek URL-nya dilepas segera setelah dipakai. Yang tidak dilepas menahan
+    seluruh isi berkasnya di memori sampai tabnya ditutup.
+    """
+    gumpal = window.Blob.new([teks], {"type": jenis})
+    alamat = window.URL.createObjectURL(gumpal)
+    tautan_unduh = document.createElement("a")
+    tautan_unduh.href = alamat
+    tautan_unduh.download = nama
+    document.body.appendChild(tautan_unduh)
+    tautan_unduh.click()
+    document.body.removeChild(tautan_unduh)
+    window.URL.revokeObjectURL(alamat)
+
+
+def unduh_csv(_ev=None):
+    wadah = document["kabar-ekspor"]
+    kosongkan(wadah)
+    try:
+        baris = ekspor.laporan_baris(K, _KONFORM.get("gradien_terakhir"))
+        nama = ekspor.nama_berkas(K, "csv")
+        unduh(nama, ekspor.csv(baris), "text/csv;charset=utf-8")
+        wadah <= html.SPAN("Diunduh: %s" % nama, Class="kabar kabar--benar")
+    except Exception as galat:  # noqa: BLE001 - unduhan bisa ditolak peramban
+        wadah <= html.SPAN(
+            "Peramban menolak unduhan: %s" % galat, Class="kabar"
+        )
+
+
+def cetak(_ev=None):
+    """Membuka dialog cetak peramban, yang juga bisa menyimpan sebagai PDF.
+
+    # Kenapa bukan pustaka PDF
+
+    Karena menyusun PDF di peramban menuntut pustaka berukuran ratusan
+    kilobyte \u2014 lebih besar daripada seluruh mesin jaringan syaraf di proyek
+    ini, dan hanya untuk menghasilkan berkas yang sudah bisa dihasilkan
+    peramban itu sendiri.
+
+    Dialog cetak juga memberi pengguna hal yang tidak diberikan pustaka mana
+    pun: ukuran kertas, orientasi, dan pratayang sebelum berkasnya jadi.
+    """
+    window.print()
+
+
 def kartu_berbagi():
     """Tautan yang bisa dibagikan, dan pemilih tema.
 
@@ -1900,6 +2063,22 @@ def kartu_berbagi():
     b.bind("click", salin_tautan)
     k <= b
     k <= html.DIV(id="kabar-tautan", Class="kabar-wadah")
+
+    k <= html.P(
+        "Unduh seluruh hasilnya \u2014 setelan, ramalan tiap titik, bobot, kurva "
+        "galat, dan pemeriksaan gradien kalau sudah dijalankan \u2014 sebagai satu "
+        "berkas yang bisa dibuka Excel, atau cetak halamannya menjadi PDF.",
+        Class="catatan",
+    )
+    baris_ekspor = html.DIV(Class="baris")
+    b_csv = html.BUTTON("Unduh CSV (Excel)", Class="tombol", type="button")
+    b_csv.bind("click", unduh_csv)
+    baris_ekspor <= b_csv
+    b_cetak = html.BUTTON("Cetak / simpan PDF", Class="tombol", type="button")
+    b_cetak.bind("click", cetak)
+    baris_ekspor <= b_cetak
+    k <= baris_ekspor
+    k <= html.DIV(id="kabar-ekspor", Class="kabar-wadah")
 
     def set_tema(v):
         pasang_tema(v)

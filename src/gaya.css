@@ -647,3 +647,83 @@ tbody tr:last-child td {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* ------------------------------------------------------------------------ */
+/* Cetak                                                                     */
+/* ------------------------------------------------------------------------ */
+/*
+ * Dialog cetak peramban juga yang menghasilkan PDF-nya, jadi aturan di bawah
+ * ini menentukan bentuk berkas PDF yang diunduh pengguna — bukan sekadar
+ * bentuk kertas yang jarang dipakai siapa pun.
+ *
+ * Yang dibuang: kendali, tombol, dan kotak tempel data. Semuanya tidak bisa
+ * ditekan di atas kertas, dan yang tidak bisa ditekan hanya memakan tempat
+ * yang seharusnya jadi milik hasilnya.
+ */
+@media print {
+  .kepala,
+  .kaki,
+  .lewati,
+  .kolom-kontrol,
+  #memuat,
+  #jalankan-konformansi,
+  #periksa,
+  .baris {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 10pt;
+  }
+
+  main {
+    max-width: none;
+    padding: 0;
+    display: block;
+  }
+
+  #aplikasi {
+    display: block;
+  }
+
+  .kartu,
+  .hasil {
+    background: #fff;
+    border: 1px solid #bbb;
+    box-shadow: none;
+    /* Kartu tidak boleh terpotong di tengah oleh pergantian halaman. Judul
+       di satu halaman dan angkanya di halaman berikutnya adalah laporan yang
+       lebih sulit dibaca daripada laporan tanpa halaman sama sekali. */
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 0.6rem;
+  }
+
+  .viz__svg {
+    background: #fff;
+    border: 1px solid #ccc;
+  }
+
+  /* Kanvas bidang keputusan menyimpan piksel berwarna. Tanpa ini, sebagian
+     peramban membuang seluruh warnanya saat mencetak dan yang tersisa hanya
+     kotak putih. */
+  canvas.viz__svg {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    max-width: 260px;
+  }
+
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #555;
+  }
+
+  .catatan,
+  .viz__terang {
+    color: #333;
+  }
+}

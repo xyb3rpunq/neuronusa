@@ -19,7 +19,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from nusa import fx, inti, jaringan, konform, tautan  # noqa: E402
+from nusa import data, ekspor, fx, inti, jaringan, konform, tautan  # noqa: E402
 
 VEKTOR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "..", "conformance", "vectors"
@@ -842,6 +842,223 @@ class UjiLangkahTanpaGalat(unittest.TestCase):
                     self.assertEqual(
                         fx.bits(a.bobot[lap][j][k]), fx.bits(b.bobot[lap][j][k])
                     )
+
+
+class UjiUraiData(unittest.TestCase):
+    """Menguji pengurai data tempelan.
+
+    Isinya ditulis orang lain, ditempel dari Excel, Word, atau catatan sendiri.
+    Setiap bentuk yang mungkin ditempel harus berakhir di salah satu dari dua
+    tempat: kumpulan data yang bisa dilatih, atau pesan yang bisa dimengerti.
+    Tidak ada tempat ketiga.
+    """
+
+    def test_bentuk_paling_sederhana(self):
+        hasil = data.urai("0,0,0\n0,1,1\n1,0,1\n1,1,0")
+        self.assertEqual(len(hasil["data"]), 4)
+        self.assertEqual(hasil["data"][0], ([0.0, 0.0], [0.0]))
+        self.assertEqual(hasil["data"][3], ([1.0, 1.0], [0.0]))
+
+    def test_pemisah_yang_berbeda_beda(self):
+        for pemisah in (",", ";", "\t", "|"):
+            teks = "\n".join(
+                pemisah.join(k) for k in (["0", "0", "0"], ["0", "1", "1"],
+                                          ["1", "0", "1"], ["1", "1", "0"])
+            )
+            self.assertEqual(len(data.urai(teks)["data"]), 4, repr(pemisah))
+        # Spasi saja juga diterima; itu bentuk yang keluar dari banyak alat.
+        self.assertEqual(len(data.urai("0 0 0\n0 1 1\n1 0 1\n1 1 0")["data"]), 4)
+
+    def test_pemisah_dipilih_dari_seluruh_teks_bukan_baris_pertama(self):
+        """Cacat sungguhan yang pernah ada di sini, dikunci.
+
+        Bentuk pertama pengurai ini memilih pemisah dengan mengambil tanda
+        pertama yang ditemukan di sebuah baris. Pada data Indonesia yang
+        paling lazim — tiga kolom dipisah titik koma, dengan koma desimal di
+        salah satunya — koma ditemukan lebih dulu, barisnya terbelah menjadi
+        empat, dan seluruh berkas ditolak dengan pesan yang membingungkan.
+        """
+        # Titik koma sebagai pemisah, koma sebagai desimal.
+        hasil = data.urai("165;55,0;0\n170;60,5;0\n175;72,0;1\n180;85,5;1")
+        self.assertEqual(len(hasil["data"]), 4)
+
+        # Tab sebagai pemisah, koma sebagai desimal — bentuk yang keluar
+        # dari menyalin tabel Excel berwilayah Indonesia.
+        hasil = data.urai(
+            "165\t55,0\t0\n170\t60,5\t0\n175\t72,0\t1\n180\t85,5\t1"
+        )
+        self.assertEqual(len(hasil["data"]), 4)
+
+        # Koma sebagai pemisah, titik sebagai desimal — bentuk internasional.
+        hasil = data.urai("165,55.0,0\n170,60.5,0\n175,72.0,1\n180,85.5,1")
+        self.assertEqual(len(hasil["data"]), 4)
+
+    def test_pemilih_pemisah_menilai_bukan_menghitung_kemunculan(self):
+        """Tanda yang lebih sering muncul belum tentu pemisahnya.
+
+        Koma muncul delapan kali di bawah, titik koma hanya tiga — tetapi
+        hanya titik koma yang menghasilkan tiga kolom angka.
+        """
+        baris = ["1,5;2,5;0", "3,5;4,5;1", "5,5;6,5;0", "7,5;8,5;1"]
+        self.assertEqual(data.pilih_pemisah(baris), ";")
+
+    def test_koma_desimal_gaya_indonesia(self):
+        hasil = data.urai("0,0;0,0;0\n0,0;1,0;1\n1,0;0,0;1\n1,0;1,0;0")
+        self.assertEqual(len(hasil["data"]), 4)
+
+    def test_judul_kolom_dilewati_sekali(self):
+        hasil = data.urai("x1,x2,kelas\n0,0,0\n0,1,1\n1,0,1\n1,1,0")
+        self.assertEqual(len(hasil["data"]), 4)
+        self.assertTrue(any("judul kolom" in c for c in hasil["catatan"]))
+
+    def test_baris_kosong_dan_komentar_dilewati(self):
+        hasil = data.urai("# catatan\n0,0,0\n\n0,1,1\n\n1,0,1\n1,1,0\n")
+        self.assertEqual(len(hasil["data"]), 4)
+
+    def test_penskalaan_diberitahukan(self):
+        hasil = data.urai(data.CONTOH)
+        self.assertEqual(len(hasil["data"]), 8)
+        for masukan, _sasaran in hasil["data"]:
+            for v in masukan:
+                self.assertGreaterEqual(v, 0.0)
+                self.assertLessEqual(v, 1.0)
+        # Rentang aslinya wajib tercatat, bukan dibuang diam-diam.
+        self.assertEqual(hasil["skala"][0]["minimum"], 165.0)
+        self.assertEqual(hasil["skala"][0]["maksimum"], 182.0)
+        self.assertTrue(any("diskalakan" in c for c in hasil["catatan"]))
+
+    def test_kolom_tetap_diberitahukan_dan_tidak_menabrak(self):
+        hasil = data.urai("5,0,0\n5,1,1\n5,0,0\n5,1,1")
+        self.assertTrue(any("tidak membedakan" in c for c in hasil["catatan"]))
+        for masukan, _s in hasil["data"]:
+            self.assertEqual(masukan[0], 0.5)
+
+    def test_menolak_dengan_pesan_yang_bisa_dibaca(self):
+        kasus = [
+            ("", "belum ada data"),
+            ("   \n\n", "belum ada data"),
+            ("0,0,0\n0,1,1", "sekurang-kurangnya 4"),
+            ("0,0\n0,1\n1,0\n1,1", "3"),
+            ("0,0,0\n0,1,0\n1,0,0\n1,1,0", "satu kelas"),
+            ("0,0,0\n0,1,1\n1,0,7\n1,1,0", "0 atau 1"),
+            ("0,0,0\n0,1,1\nabc,def,1\n1,1,0", "bukan angka"),
+        ]
+        for teks, potongan in kasus:
+            with self.assertRaises(data.Galat, msg=repr(teks)) as tangkap:
+                data.urai(teks)
+            self.assertIn(potongan, str(tangkap.exception), repr(teks))
+
+    def test_menolak_yang_terlalu_banyak(self):
+        besar = "\n".join(
+            "%d,%d,%d" % (i, i * 2, i % 2) for i in range(data.BATAS_BARIS + 10)
+        )
+        with self.assertRaises(data.Galat) as tangkap:
+            data.urai(besar)
+        self.assertIn("lebih dari", str(tangkap.exception))
+
+    def test_batasnya_sendiri_masih_diterima(self):
+        pas = "\n".join("%d,%d,%d" % (i, i * 2, i % 2) for i in range(data.BATAS_BARIS))
+        self.assertEqual(len(data.urai(pas)["data"]), data.BATAS_BARIS)
+
+    def test_nan_dan_takhingga_ditolak(self):
+        for buruk in ("nan", "inf", "-inf", "Infinity"):
+            teks = "0,0,0\n0,1,1\n%s,0,1\n1,1,0" % buruk
+            with self.assertRaises(data.Galat, msg=buruk):
+                data.urai(teks)
+
+    def test_contoh_bawaan_bisa_dilatih(self):
+        """Contoh yang ditawarkan halaman wajib benar-benar bisa dipakai."""
+        hasil = data.urai(data.CONTOH)
+        j = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=7)
+        awal = j.galat(hasil["data"])
+        for _ in range(500):
+            j.langkah(hasil["data"], laju=0.5, momentum=0.9, hitung_galat=False)
+        self.assertLess(j.galat(hasil["data"]), awal)
+
+
+class UjiEkspor(unittest.TestCase):
+    """Menguji penyusun CSV.
+
+    Berkas yang gagal terbuka rapi di Excel sama tidak bergunanya dengan
+    berkas yang tidak pernah diunduh.
+    """
+
+    def _keadaan_palsu(self):
+        class Palsu:
+            pass
+
+        K = Palsu()
+        K.dataset = "xor"
+        K.tersembunyi = 4
+        K.aktivasi = "tanh"
+        K.benih = 7
+        K.laju = 0.5
+        K.momentum = 0.9
+        K.cacat = "tidak_ada"
+        K.epoch = 120
+        K.jaringan = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=7)
+        K.bayangan = None
+        K.riwayat = [0.125, 0.1, 0.05]
+        K._data = jaringan.data_xor()
+        K.data = lambda: K._data
+        return K
+
+    def test_csv_diawali_bom_dan_petunjuk_pemisah(self):
+        teks = ekspor.csv([["a", "b"], [1, 2]])
+        # BOM wajib pertama: tanpa itu Excel di Windows membaca berkasnya
+        # sebagai ANSI dan setiap huruf beraksen berubah jadi sampah.
+        self.assertTrue(teks.startswith("\ufeff"))
+        self.assertIn("sep=,", teks.splitlines()[0])
+        self.assertIn(chr(13) + chr(10), teks)
+
+    def test_sel_yang_memuat_koma_atau_kutip_dikutip(self):
+        teks = ekspor.csv([["ada, koma", 'ada "kutip"', "polos"]])
+        baris = teks.splitlines()[1]
+        self.assertIn('"ada, koma"', baris)
+        self.assertIn('"ada ""kutip"""', baris)
+        self.assertIn(",polos", baris)
+
+    def test_baris_baru_di_dalam_sel_tidak_merusak_bentuknya(self):
+        teks = ekspor.csv([["dua" + chr(10) + "baris", "x"]])
+        # Selnya dikutip, jadi jumlah kutip ganda pada baris itu genap.
+        self.assertEqual(teks.count('"') % 2, 0)
+        self.assertIn('"dua', teks)
+
+    def test_laporan_memuat_seluruh_bagian(self):
+        K = self._keadaan_palsu()
+        baris = ekspor.laporan_baris(K)
+        tajuk = {b[0] for b in baris if len(b) == 1 and isinstance(b[0], str)}
+        for wajib in ("SETELAN", "HASIL", "RAMALAN TIAP TITIK", "BOBOT DAN BIAS",
+                      "KURVA GALAT", "CATATAN"):
+            self.assertIn(wajib, tajuk, wajib)
+
+    def test_laporan_memuat_pemeriksaan_gradien_bila_ada(self):
+        K = self._keadaan_palsu()
+        hasil = K.jaringan.periksa_gradien(K.data())
+        baris = ekspor.laporan_baris(K, hasil)
+        tajuk = {b[0] for b in baris if len(b) == 1 and isinstance(b[0], str)}
+        self.assertIn("PEMERIKSAAN GRADIEN", tajuk)
+        # Tiap parameter wajib punya satu baris; yang hilang berarti laporan
+        # yang tampak lengkap padahal tidak.
+        rincian = [b for b in baris if b and b[0] in ("bobot", "bias")]
+        self.assertGreaterEqual(len(rincian), len(hasil["rincian"]))
+
+    def test_setiap_baris_laporan_bisa_disusun_jadi_csv(self):
+        K = self._keadaan_palsu()
+        teks = ekspor.csv(ekspor.laporan_baris(K, K.jaringan.periksa_gradien(K.data())))
+        self.assertGreater(len(teks), 800)
+        # Tidak boleh ada baris yang jumlah kutipnya ganjil: itu tanda sel
+        # yang terpotong, dan Excel akan menelan sisa berkasnya.
+        for baris in teks.split(chr(13) + chr(10)):
+            self.assertEqual(baris.count('"') % 2, 0, baris[:60])
+
+    def test_nama_berkas_menyebutkan_setelannya(self):
+        K = self._keadaan_palsu()
+        nama = ekspor.nama_berkas(K)
+        for potongan in ("neuronusa", "xor", "h4", "tanh", "s7", "e120", ".csv"):
+            self.assertIn(potongan, nama)
+        K.cacat = "tanda_terbalik"
+        self.assertIn("tanda_terbalik", ekspor.nama_berkas(K))
 
 
 class UjiTautan(unittest.TestCase):
