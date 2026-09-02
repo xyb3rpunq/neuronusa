@@ -1,0 +1,14 @@
+# Akhir baris dinormalkan menjadi LF di dalam repositori.
+#
+# Berkas vektor adalah alasan utamanya. Isinya dipisah tab dan dibaca kolom
+# demi kolom; sebuah carriage return yang ikut terbawa akan menempel di kolom
+# terakhir tiap baris, membuat setiap pola bit di kolom itu gagal diurai —
+# dan hanya di mesin yang meng-checkout dengan CRLF. Kegagalan yang bergantung
+# pada sistem operasi pembacanya adalah kegagalan yang paling lama dicari.
+#
+# .Deckyx
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,0 +1,1526 @@
+"""Antarmuka neuronusa, ditulis dalam Python dan dijalankan Brython.
+
+Tidak ada JavaScript sama sekali di berkas ini. Yang dipakai hanya ``browser``
+dari Brython, yang memetakan DOM ke Python. Itu bukan pameran: seluruh mesin
+jaringan syarafnya sudah Python, dan menuliskan antarmukanya dalam bahasa lain
+berarti setiap angka harus menyeberang batas bahasa dua kali per bingkai.
+
+# Kenapa pelatihannya dipecah menjadi potongan
+
+Brython adalah penerjemah Python di atas JavaScript, dan JavaScript berjalan
+di utas yang sama dengan tampilan. Melatih tiga ribu epoch dalam satu
+panggilan akan membekukan halaman sampai selesai — pengguna tidak bisa
+menghentikannya, dan peramban akan menawarkan menutup tab. Karena itu
+pelatihannya dipecah menjadi potongan kecil yang dijadwalkan lewat
+``set_timeout``, sehingga tampilan tetap hidup dan tombol berhenti tetap bisa
+ditekan.
+
+.Deckyx
+"""
+
+import math
+
+from browser import document, html, timer, window
+from browser import svg as gambar_svg
+
+from nusa import fx
+from nusa.jaringan import AKTIVASI, DATASET, Jaringan
+
+# ---------------------------------------------------------------------------
+# Bantuan tampilan
+# ---------------------------------------------------------------------------
+
+
+
+def n(x, digit=4):
+    """Angka untuk ditampilkan; dibulatkan pada tampilan saja."""
+    if isinstance(x, float):
+        if math.isnan(x):
+            return "—"
+        if math.isinf(x):
+            return "∞" if x > 0 else "-∞"
+    # ``format`` dan bukan ``%``: lihat catatan panjang di :func:`ilmiah`
+    # tentang pemformatan Brython. ``%f`` sendiri terukur benar, tetapi memakai
+    # dua jalan berbeda untuk pekerjaan yang sama hanya menyisakan satu jalan
+    # yang tidak pernah diperiksa siapa pun.
+    s = format(float(x), "." + str(digit) + "f")
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return "0" if s in ("-0", "") else s
+
+
+def ilmiah(x, digit=2):
+    """Angka dalam bentuk ilmiah, untuk galat yang sangat kecil.
+
+    Memakai ``format`` dan **bukan** ``"%.3e" % x``. Keduanya setara di
+    CPython; di Brython yang kedua rusak.
+
+    Cacatnya ditemukan lewat halaman ini sendiri: pemeriksa gradien melaporkan
+    galat relatif terburuk ``0.000e+00`` untuk setiap parameter, angka yang
+    membuat hasilnya tampak jauh lebih meyakinkan daripada yang sebenarnya.
+    Nilai sesungguhnya sekitar ``2.8e-08``. Diukur di peramban:
+
+        '%.3e' % 2.803e-08   → '0.000e+00'     (salah)
+        '%.3e' % 1.5e+300    → '1.5e+300e+00'  (salah)
+        '%.2e' % -3.5e-9     → '-0.00e+00'     (salah)
+        format(2.803e-08, '.3e') → '2.803e-08'  (benar)
+
+    Uji di CPython tidak bisa menangkap ini, karena di CPython keduanya benar.
+    Yang menangkapnya adalah pemeriksaan konformansi yang dijalankan di dalam
+    peramban — dan itulah sebabnya tombolnya ada di halaman ini.
+    """
+    if x == 0.0:
+        return "0"
+    if math.isnan(x):
+        return "—"
+    if math.isinf(x):
+        return "∞" if x > 0 else "-∞"
+    return format(x, "." + str(digit) + "e")
+
+
+def svg(tag, **atribut):
+    """Membuat simpul SVG.
+
+    Simpul SVG **wajib** dibuat pada ruang namanya sendiri. Dibuat dengan
+    ``document.createElement`` seperti simpul HTML biasa, hasilnya adalah
+    elemen bernama sama yang sah menurut DOM tetapi tidak pernah tergambar
+    sepiksel pun — dan kegagalannya senyap: tidak ada galat, tidak ada
+    peringatan, hanya kotak kosong.
+
+    Atributnya dipasang lewat ``setAttribute``, bukan lewat argumen kata kunci
+    modul ``browser.svg``. Alasannya: argumen kata kunci hanya mengganti
+    garis bawah **pertama** menjadi tanda hubung, dan nama atribut SVG
+    peka huruf besar-kecil sehingga ``Class`` tidak pernah cocok dengan
+    pemilih CSS ``.kelas``.
+    """
+    simpul = getattr(gambar_svg, tag)()
+    for k, v in atribut.items():
+        simpul.setAttribute(k.replace("_", "-"), str(v))
+    return simpul
+
+
+def kosongkan(simpul):
+    simpul.clear()
+
+
+def kartu(judul, *anak):
+    k = html.SECTION(Class="kartu")
+    if judul:
+        k <= html.H2(judul, Class="kartu__judul")
+    for a in anak:
+        k <= a
+    return k
+
+
+def bingkai(judul, terang, isi, kunci=None):
+    """Bingkai gambar: judul, isi, keterangan simbol, dan penjelasannya.
+
+    ``terang`` wajib. Gambar tanpa penjelasan hanya berguna bagi yang sudah
+    paham isinya, dan pengguna yang paling butuh gambar justru yang belum
+    paham. Teks itu sekaligus menjadi label bagi pembaca layar, yang tidak
+    bisa melihat gambarnya sama sekali.
+    """
+    f = html.FIGURE(Class="viz")
+    f <= html.H3(judul, Class="viz__judul")
+    isi.setAttribute("class", "viz__svg")
+    isi.setAttribute("role", "img")
+    isi.setAttribute("aria-label", "%s. %s" % (judul, terang))
+    f <= isi
+    if kunci:
+        u = html.UL(Class="viz__kunci")
+        for warna, label in kunci:
+            li = html.LI()
+            s = html.SPAN(Class="viz__contoh")
+            s.style.background = warna
+            s.setAttribute("aria-hidden", "true")
+            li <= s
+            li <= html.SPAN(label)
+            u <= li
+        f <= u
+    f <= html.FIGCAPTION(terang, Class="viz__terang")
+    return f
+
+
+def gambar(judul, terang, isi_svg, lebar, tinggi, kunci=None):
+    """Bingkai untuk isi berupa SVG, lengkap dengan kotak pandangnya."""
+    isi_svg.setAttribute("viewBox", "0 0 %d %d" % (lebar, tinggi))
+    return bingkai(judul, terang, isi_svg, kunci)
+
+
+def warna_tema(nama):
+    """Nilai sebuah token warna CSS, seperti yang berlaku sekarang.
+
+    Kanvas menyimpan piksel, bukan rujukan. Ia tidak ikut berubah saat tema
+    peramban berpindah terang-gelap, jadi warnanya harus dibaca ulang setiap
+    kali digambar — bukan disimpan di tetapan Python.
+    """
+    return window.getComputedStyle(document.body).getPropertyValue(nama).strip()
+
+
+# ---------------------------------------------------------------------------
+# Keadaan aplikasi
+# ---------------------------------------------------------------------------
+
+
+class Keadaan:
+    def __init__(self):
+        self.dataset = "xor"
+        self.tersembunyi = 4
+        self.aktivasi = "tanh"
+        self.laju = 0.5
+        self.momentum = 0.9
+        self.benih = 7
+        self.epoch = 0
+        self.riwayat = []
+        self.melatih = False
+        self.jaringan = None
+        self._data = None
+        self.pesan = None
+        # Kapan bagian yang mahal terakhir digambar. Nol berarti "belum
+        # pernah", sehingga penggambaran pertama selalu lengkap.
+        self.gambar_berat_terakhir = 0.0
+        # Contoh data mana yang sedang ditelusuri langkah demi langkah.
+        self.titik_jejak = 0
+        self.bangun()
+
+    def data(self):
+        # Disimpan, tidak dibangkitkan ulang tiap dipanggil. Kumpulan cincin
+        # membangkitkan empat puluh titik lewat PRNG; memanggilnya ulang belasan
+        # kali per bingkai gambar tidak mengubah hasilnya sedikit pun, hanya
+        # membuang waktu di penerjemah yang sudah lambat.
+        if self._data is None:
+            self._data = DATASET[self.dataset][1]()
+        return self._data
+
+    def bangun(self):
+        self._data = None
+        self.pesan = None
+        ukuran = [2, 1] if self.tersembunyi == 0 else [2, self.tersembunyi, 1]
+        self.jaringan = Jaringan(ukuran, aktivasi=self.aktivasi, benih=self.benih)
+        self.epoch = 0
+        self.riwayat = [self.jaringan.galat(self.data())]
+
+
+K = Keadaan()
+
+
+# ---------------------------------------------------------------------------
+# Gambar: kurva galat
+# ---------------------------------------------------------------------------
+
+
+def gambar_galat():
+    L, T = 640, 200
+    pad_kiri, pad_bawah, pad_atas = 52, 28, 14
+    s = svg("svg")
+
+    riwayat = K.riwayat
+    if len(riwayat) < 2:
+        return s, "Belum ada langkah pelatihan."
+
+    terbesar = max(riwayat)
+    terkecil = min(riwayat)
+    if terbesar <= terkecil:
+        terbesar = terkecil + 1e-9
+
+    def px(i):
+        return pad_kiri + (i / (len(riwayat) - 1)) * (L - pad_kiri - 16)
+
+    def py(v):
+        bagian = (v - terkecil) / (terbesar - terkecil)
+        return pad_atas + (1.0 - bagian) * (T - pad_atas - pad_bawah)
+
+    for bagian in (0.0, 0.5, 1.0):
+        y = pad_atas + bagian * (T - pad_atas - pad_bawah)
+        garis = svg("line", x1=pad_kiri, y1=y, x2=L - 16, y2=y, stroke="var(--garis)")
+        s <= garis
+        nilai = terbesar - bagian * (terbesar - terkecil)
+        t = svg("text", x=pad_kiri - 8, y=y + 4, text_anchor="end", font_size=9, fill="var(--tinta-3)")
+        t.textContent = ilmiah(nilai, 1)
+        s <= t
+
+    d = []
+    for i, v in enumerate(riwayat):
+        d.append("%s %.2f %.2f" % ("M" if i == 0 else "L", px(i), py(v)))
+    s <= svg("path", d=" ".join(d), fill="none", stroke="var(--aksen)", stroke_width=2)
+
+    t = svg("text", x=pad_kiri, y=T - 8, font_size=9, fill="var(--tinta-3)")
+    t.textContent = "epoch 0"
+    s <= t
+    t2 = svg("text", x=L - 16, y=T - 8, text_anchor="end", font_size=9, fill="var(--tinta-3)")
+    t2.textContent = "epoch %d" % K.epoch
+    s <= t2
+
+    arah = "menurun" if riwayat[-1] < riwayat[0] else "TIDAK menurun"
+    terang = (
+        "Galat %s dari %s menjadi %s setelah %d epoch. "
+        "Sumbu tegaknya berskala dari nilai terkecil sampai terbesar yang pernah "
+        "dicapai, jadi kurva yang terlihat curam belum tentu turun banyak — "
+        "perhatikan angka di sumbunya, bukan kemiringannya."
+        % (arah, ilmiah(riwayat[0], 2), ilmiah(riwayat[-1], 2), K.epoch)
+    )
+    return s, terang
+
+
+# ---------------------------------------------------------------------------
+# Gambar: batas keputusan
+# ---------------------------------------------------------------------------
+
+
+#: Sisi kosong di sekeliling bidang batas keputusan, dalam piksel gambar.
+#:
+#: Bukan hiasan. Data XOR duduk tepat di keempat sudut bidang satuan, jadi
+#: tanpa sisa ruang ini separuh setiap lingkaran terpotong tepi gambar —
+#: dan yang terpotong justru titik-titik yang paling menentukan.
+PADDING_BATAS = 12
+
+#: Sisi bidang batas keputusan dalam piksel CSS.
+SISI_BATAS = 300
+
+#: Berapa tingkat buram yang dibedakan saat menggabung petak sebaris.
+#:
+#: Makin banyak tingkat, makin halus gradasinya dan makin sedikit petak yang
+#: bisa digabung. 24 sudah lebih halus daripada yang bisa dibedakan mata pada
+#: warna setransparan ini.
+TINGKAT_BURAM = 24
+
+#: Halus kasarnya bidang: berapa petak per sisi.
+#:
+#: Tiap petak berarti satu perambatan maju, jadi angkanya berbanding lurus
+#: dengan biaya menggambar — dua kali lipat sisinya berarti empat kali biayanya.
+#: 22 memberi 484 titik, sekitar 14 piksel per petak pada gambar 300 piksel:
+#: cukup halus untuk memperlihatkan batas yang melengkung, cukup murah untuk
+#: digambar ulang beberapa kali per detik di penerjemah Python.
+KISI_BATAS = 22
+
+
+def gambar_batas():
+    """Bidang keputusan, digambar di atas kanvas dan bukan SVG.
+
+    # Kenapa kanvas, padahal gambar lain di halaman ini SVG
+
+    Karena yang digambar di sini bukan struktur melainkan piksel. SVG unggul
+    untuk hal yang punya makna satuan — sebuah neuron, sebuah sisi, sebuah
+    label — karena tiap bagiannya bisa diberi nama, ditata lewat CSS, dan
+    dibacakan pembaca layar. Bidang keputusan tidak punya bagian bernama; ia
+    ratusan petak warna yang hanya berarti secara keseluruhan.
+
+    Perbedaannya terukur, bukan selera. Bentuk SVG-nya membuat 677 elemen DOM
+    tiap kali digambar dan memakan **606 milidetik** di peramban — cukup lama
+    untuk membuat setiap langkah pelatihan tersendat terlihat. Ratusan simpul
+    DOM yang tidak satu pun bisa diberi nama adalah harga tanpa imbalan.
+
+    Kanvas memang tidak bisa dibaca pembaca layar. Karena itu keterangan di
+    bawah gambar menyebutkan angkanya — berapa titik yang benar dari berapa
+    — dan bukan sekadar mengatakan "lihat gambar di atas".
+    """
+    dpr = window.devicePixelRatio or 1
+    piksel = int(SISI_BATAS * dpr)
+    kanvas = html.CANVAS(width=piksel, height=piksel)
+    kanvas.style.aspectRatio = "1 / 1"
+    ctx = kanvas.getContext("2d")
+
+    skala = piksel / SISI_BATAS
+    dalam = (SISI_BATAS - 2 * PADDING_BATAS) * skala
+    tepi = PADDING_BATAS * skala
+
+    def ke_layar(x, y):
+        return tepi + x * dalam, tepi + (1.0 - y) * dalam
+
+    # Satu resolusi gaya, empat pembacaan — bukan empat resolusi. Kanvas
+    # menyimpan piksel, bukan rujukan, jadi warnanya harus dibaca ulang tiap
+    # kali digambar supaya ikut berpindah saat tema peramban berubah.
+    gaya = window.getComputedStyle(document.body)
+    warna_a = gaya.getPropertyValue("--kelas-a").strip()
+    warna_b = gaya.getPropertyValue("--kelas-b").strip()
+    warna_garis = gaya.getPropertyValue("--garis-tegas").strip()
+    warna_tinta = gaya.getPropertyValue("--tinta").strip()
+
+    ctx.clearRect(0, 0, piksel, piksel)
+
+    kisi = KISI_BATAS
+    bidang = K.jaringan.bidang_keputusan(kisi)
+    sisi = dalam / kisi
+
+    # Tingkat buram tiap petak dihitung sekali di sini, bukan dua kali di dalam
+    # pencarian lari di bawah. Tiap petak diperiksa dua kali — sekali sebagai
+    # awal lari, sekali sebagai calon lanjutannya — dan menghitung ulang
+    # ``int(min(abs(v - 0.5) * 2, 1) * 24)`` di kedua tempat berarti menjalankan
+    # lima operasi Python dua kali untuk setiap petak.
+    tingkatan = []
+    atasan = []
+    for v in bidang:
+        tingkatan.append(int(min(abs(v - 0.5) * 2.0, 1.0) * TINGKAT_BURAM))
+        atasan.append(v >= 0.5)
+
+    # Metode konteks kanvas diambil sekali ke nama lokal. Tiap pencarian
+    # atribut pada objek JavaScript menyeberangi batas bahasa, dan penyeberangan
+    # itu jauh lebih mahal daripada pemanggilannya sendiri.
+    isi_persegi = ctx.fillRect
+
+    # Petak sebaris yang sewarna dan setingkat buram digabung menjadi satu
+    # persegi.
+    #
+    # Bukan penghematan piksel melainkan penghematan panggilan. Tiap panggilan
+    # ke konteks kanvas terukur sekitar 30 mikrodetik — puluhan kali lebih
+    # mahal daripada aritmetika di sisi Python. Bidang keputusan berubah mulus,
+    # jadi petak bersebelahan hampir selalu jatuh di tingkat yang sama, dan
+    # penggabungan ini menurunkan jumlah panggilannya sampai sekitar seperlima
+    # tanpa mengubah satu piksel pun yang terlihat.
+    for ky in range(kisi):
+        y = tepi + dalam - (ky + 1) * sisi
+        dasar = ky * kisi
+        kx = 0
+        while kx < kisi:
+            tingkat = tingkatan[dasar + kx]
+            atas = atasan[dasar + kx]
+            akhir_lari = kx + 1
+            while (
+                akhir_lari < kisi
+                and atasan[dasar + akhir_lari] is atas
+                and tingkatan[dasar + akhir_lari] == tingkat
+            ):
+                akhir_lari += 1
+
+            # Buramnya mengikuti seberapa jauh keluarannya dari 0,5. Jaringan
+            # yang belum belajar apa pun menjawab 0,5 di mana-mana, dan bidang
+            # yang pucat rata itu memang gambaran yang jujur.
+            ctx.globalAlpha = 0.10 + 0.72 * tingkat / TINGKAT_BURAM
+            ctx.fillStyle = warna_b if atas else warna_a
+            # Setengah piksel ditambahkan supaya persegi bersebelahan bertindih
+            # sedikit. Tanpa itu pembulatan sub-piksel meninggalkan garis latar
+            # tipis di antaranya, dan garis-garis itu terbaca seperti pola yang
+            # berarti padahal bukan.
+            isi_persegi(
+                tepi + kx * sisi,
+                y,
+                (akhir_lari - kx) * sisi + 0.5,
+                sisi + 0.5,
+            )
+            kx = akhir_lari
+
+    ctx.globalAlpha = 1.0
+    ctx.strokeStyle = warna_garis
+    ctx.lineWidth = skala
+    ctx.strokeRect(tepi, tepi, dalam, dalam)
+
+    for x, t in K.data():
+        cx, cy = ke_layar(x[0], x[1])
+        ctx.beginPath()
+        ctx.arc(cx, cy, 6 * skala, 0, 2 * math.pi)
+        ctx.fillStyle = warna_b if t[0] >= 0.5 else warna_a
+        ctx.fill()
+        ctx.lineWidth = 1.6 * skala
+        ctx.strokeStyle = warna_tinta
+        ctx.stroke()
+
+    benar = sum(1 for x, t in K.data() if round(K.jaringan.ramal(x)[0]) == int(t[0]))
+    total = len(K.data())
+    terang = (
+        "Warna latar adalah tebakan jaringan di setiap titik bidang; makin pekat "
+        "makin yakin. Lingkaran adalah data latihnya. Saat ini %d dari %d titik "
+        "diramalkan benar. Perhatikan bentuk batasnya: perceptron tanpa lapis "
+        "tersembunyi hanya bisa menarik garis lurus, dan itulah sebabnya XOR "
+        "mustahil baginya." % (benar, total)
+    )
+    return kanvas, terang
+
+
+# ---------------------------------------------------------------------------
+# Gambar: bobot jaringan
+# ---------------------------------------------------------------------------
+
+
+def gambar_jaringan():
+    ukuran = K.jaringan.ukuran
+    L = 420
+    T = max(180, max(ukuran) * 44 + 40)
+    s = svg("svg")
+
+    def titik(lap, j):
+        x = 40 + lap * (L - 80) / max(1, len(ukuran) - 1)
+        banyak = ukuran[lap]
+        y = T / 2 + (j - (banyak - 1) / 2.0) * 42
+        return x, y
+
+    terbesar = 1e-9
+    for lap in K.jaringan.bobot:
+        for baris in lap:
+            for w in baris:
+                terbesar = max(terbesar, abs(w))
+
+    for lap in range(len(K.jaringan.bobot)):
+        for j, baris in enumerate(K.jaringan.bobot[lap]):
+            for k, w in enumerate(baris):
+                x1, y1 = titik(lap, k)
+                x2, y2 = titik(lap + 1, j)
+                tebal = 0.5 + 3.5 * abs(w) / terbesar
+                # Tanda bobot dibedakan warnanya, bukan hanya tebalnya. Bobot
+                # negatif dan positif berperan berlawanan, dan menyamakan
+                # warnanya menyembunyikan justru struktur yang dipelajari.
+                warna = "var(--positif)" if w >= 0 else "var(--negatif)"
+                g = svg(
+                    "line",
+                    x1=x1, y1=y1, x2=x2, y2=y2,
+                    stroke=warna,
+                    stroke_width="%.2f" % tebal,
+                    opacity=0.75,
+                )
+                s <= g
+
+    for lap in range(len(ukuran)):
+        for j in range(ukuran[lap]):
+            x, y = titik(lap, j)
+            c = svg("circle", cx=x, cy=y, r=13, fill="var(--latar-3)", stroke="var(--garis-tegas)", stroke_width=1.4)
+            s <= c
+            t = svg("text", x=x, y=y + 4, text_anchor="middle", font_size=9, fill="var(--tinta-3)")
+            t.textContent = str(j + 1)
+            s <= t
+
+    nama = ["masukan"] + ["tersembunyi"] * (len(ukuran) - 2) + ["keluaran"]
+    for lap in range(len(ukuran)):
+        x, _ = titik(lap, 0)
+        t = svg("text", x=x, y=T - 8, text_anchor="middle", font_size=9, fill="var(--tinta-3)")
+        t.textContent = nama[lap]
+        s <= t
+
+    terang = (
+        "Tebal garis menyatakan besar bobotnya, warnanya menyatakan tandanya. "
+        "Bobot negatif dan positif berperan berlawanan, jadi menyamakan warnanya "
+        "akan menyembunyikan struktur yang justru sedang dipelajari jaringan. "
+        "Nilai tepatnya ada di tabel di bawah — bukan sebagai gelembung yang "
+        "muncul saat disentuh tetikus, karena gelembung itu tidak pernah muncul "
+        "di layar sentuh dan tidak pernah terbaca pembaca layar."
+    )
+    return s, terang
+
+
+# ---------------------------------------------------------------------------
+# Penggambaran halaman
+# ---------------------------------------------------------------------------
+
+
+def gambar_ulang(berat=True):
+    """Menggambar ulang keluaran.
+
+    Dipecah menjadi dua bagian karena biayanya jauh berbeda. Ringkasan dan
+    kurva galat memakan beberapa milidetik; bidang keputusan, peta bobot, dan
+    kedua tabel memakan puluhan. Menggambar semuanya di tiap potongan
+    pelatihan membuat halaman tersendat tanpa menambah apa pun yang bisa
+    dilihat — bidang keputusan tidak berubah kentara dalam sepersepuluh detik.
+    """
+    data = K.data()
+    galat = K.jaringan.galat(data)
+    benar = sum(1 for x, t in data if round(K.jaringan.ramal(x)[0]) == int(t[0]))
+
+    ringkas = document["keluaran-ringkas"]
+    kosongkan(ringkas)
+
+    if K.pesan:
+        ringkas <= html.P(K.pesan, Class="galat")
+
+    kotak = html.DIV(Class="hasil")
+    kotak <= html.DIV("Galat kuadrat rata-rata", Class="hasil__label")
+    kotak <= html.DIV(ilmiah(galat, 4), Class="hasil__nilai")
+    kotak <= html.DIV(
+        "%d dari %d titik diramalkan benar setelah %d epoch — %d parameter dilatih."
+        % (benar, len(data), K.epoch, K.jaringan.jumlah_parameter()),
+        Class="hasil__tafsir",
+    )
+    macet = diagnosa_macet(data, benar)
+    if macet:
+        kotak <= html.DIV(macet, Class="hasil__tafsir")
+    ringkas <= kotak
+
+    s_galat, t_galat = gambar_galat()
+    ringkas <= kartu("Kurva galat", gambar("Galat tiap epoch", t_galat, s_galat, 640, 200))
+
+    if not berat:
+        return
+
+    wadah = document["keluaran-berat"]
+    kosongkan(wadah)
+
+    s_batas, t_batas = gambar_batas()
+    wadah <= kartu(
+        "Batas keputusan",
+        bingkai(
+            "Tebakan jaringan di seluruh bidang",
+            t_batas,
+            s_batas,
+            [("var(--kelas-a)", "kelas 0"), ("var(--kelas-b)", "kelas 1")],
+        ),
+    )
+
+    s_jar, t_jar = gambar_jaringan()
+    wadah <= kartu(
+        "Bobot yang dipelajari",
+        gambar(
+            "Peta bobot jaringan",
+            t_jar,
+            s_jar,
+            420,
+            max(180, max(K.jaringan.ukuran) * 44 + 40),
+            [("var(--positif)", "bobot positif"), ("var(--negatif)", "bobot negatif")],
+        ),
+        tabel_bobot(),
+    )
+
+    wadah <= kartu("Ramalan tiap titik data", tabel_ramalan(data))
+
+    # Jejaknya ikut bagian yang mahal: ia menuntut satu perambatan maju dan
+    # balik penuh, dan angkanya berubah setiap epoch — tetapi tidak ada yang
+    # bisa dibaca dari angka yang berganti tiga puluh kali sedetik.
+    gambar_langkah()
+
+
+#: Berapa banyak epoch terakhir yang diperiksa untuk menyatakan pelatihan macet.
+JENDELA_MACET = 12
+
+#: Perubahan galat di bawah ini, sepanjang jendela di atas, dianggap mandek.
+AMBANG_MACET = 1e-7
+
+
+def diagnosa_macet(data, benar):
+    """Menjelaskan pelatihan yang berhenti sebelum benar — kalau memang begitu.
+
+    Ini pengukuran, bukan tebakan. Yang dilihat adalah galat sungguhan pada
+    beberapa epoch terakhir dan ramalan sungguhan pada tiap titik; kalau
+    keduanya menunjukkan jaringan berhenti bergerak tanpa menyelesaikan
+    masalahnya, barulah keterangannya muncul.
+
+    Membedakan dua sebab yang gejalanya mirip di kurva galat tetapi obatnya
+    berlawanan: jaringan yang terlalu kecil untuk masalahnya, dan jaringan
+    yang cukup besar tetapi neuronnya sudah jenuh atau mati.
+    """
+    if K.epoch < 200 or benar >= len(data) or len(K.riwayat) < JENDELA_MACET:
+        return None
+    jendela = K.riwayat[-JENDELA_MACET:]
+    if max(jendela) - min(jendela) > AMBANG_MACET:
+        return None
+
+    tetap = len({round(K.jaringan.ramal(x)[0]) for x, _ in data}) == 1
+
+    if K.tersembunyi == 0 and K.dataset in ("xor", "lingkaran"):
+        return (
+            "Pelatihan berhenti bergerak. Ini bukan setelan yang salah melainkan "
+            "batas yang sesungguhnya: tanpa lapis tersembunyi jaringan ini cuma "
+            "bisa menarik satu garis lurus, dan tidak ada garis lurus yang "
+            "memisahkan masalah ini. Tambahkan neuron tersembunyi."
+        )
+    if tetap:
+        return (
+            "Pelatihan berhenti bergerak, dan jaringan menjawab sama untuk setiap "
+            "masukan — neuronnya jenuh atau mati, sehingga turunannya nyaris nol "
+            "dan tidak ada lagi yang mendorongnya. Kecilkan laju efektifnya, atau "
+            "ganti aktivasinya; relu paling sering mati begini."
+        )
+    return (
+        "Pelatihan berhenti bergerak sebelum seluruh titik benar. Coba tambah "
+        "neuron tersembunyi, atau ganti benih bobot awal — sebagian titik awal "
+        "memang berakhir di lembah yang bukan yang terdalam."
+    )
+
+
+def tabel_bobot():
+    """Seluruh bobot dan bias sebagai angka.
+
+    Gambar memperlihatkan polanya, tabel memperlihatkan nilainya. Keduanya
+    dibutuhkan: pola tanpa angka tidak bisa diperiksa, angka tanpa pola tidak
+    bisa dibaca sekilas.
+    """
+    bungkus = html.DIV(Class="gulir-x")
+    t = html.TABLE()
+    kepala = html.TR()
+    for h in ("parameter", "nilai"):
+        kepala <= html.TH(h)
+    t <= html.THEAD(kepala)
+    isi = html.TBODY()
+    for lap in range(len(K.jaringan.bobot)):
+        for j, baris_bobot in enumerate(K.jaringan.bobot[lap]):
+            for k, w in enumerate(baris_bobot):
+                baris = html.TR()
+                baris <= html.TD("w  L%d  n%d ← %d" % (lap, j + 1, k + 1))
+                baris <= html.TD(n(w, 6), Class="num")
+                isi <= baris
+        for j, b in enumerate(K.jaringan.bias[lap]):
+            baris = html.TR()
+            baris <= html.TD("bias  L%d  n%d" % (lap, j + 1))
+            baris <= html.TD(n(b, 6), Class="num")
+            isi <= baris
+    t <= isi
+    bungkus <= t
+    return bungkus
+
+
+def tabel_ramalan(data):
+    bungkus = html.DIV(Class="gulir-x")
+    t = html.TABLE()
+    kepala = html.TR()
+    for h in ("x₁", "x₂", "sasaran", "keluaran", "galat", "benar"):
+        kepala <= html.TH(h)
+    t <= html.THEAD(kepala)
+    isi = html.TBODY()
+    for x, sasaran in data[:16]:
+        y = K.jaringan.ramal(x)[0]
+        cocok = round(y) == int(sasaran[0])
+        baris = html.TR()
+        baris <= html.TD(n(x[0], 3), Class="num")
+        baris <= html.TD(n(x[1], 3), Class="num")
+        baris <= html.TD(n(sasaran[0], 0), Class="num")
+        baris <= html.TD(n(y, 4), Class="num")
+        baris <= html.TD(n(abs(y - sasaran[0]), 4), Class="num")
+        baris <= html.TD("ya" if cocok else "—")
+        isi <= baris
+    t <= isi
+    bungkus <= t
+    return bungkus
+
+
+# ---------------------------------------------------------------------------
+# Pemeriksaan gradien
+# ---------------------------------------------------------------------------
+
+
+def jalankan_periksa_gradien(_ev=None):
+    wadah = document["gradien"]
+    kosongkan(wadah)
+    wadah <= html.P("Menghitung ulang setiap turunan dengan selisih hingga…", Class="catatan")
+
+    def kerjakan():
+        hasil = K.jaringan.periksa_gradien(K.data())
+        kosongkan(wadah)
+
+        lencana = html.SPAN(
+            "LOLOS" if hasil["lolos"] else "GAGAL",
+            Class="lencana lencana--%s" % ("benar" if hasil["lolos"] else "salah"),
+        )
+        ringkas = html.P()
+        ringkas <= lencana
+        ringkas <= html.SPAN(
+            "  Galat relatif terburuk %s pada %d parameter. Ambangnya 1e-5."
+            % (ilmiah(hasil["terburuk"], 3), len(hasil["rincian"]))
+        )
+        wadah <= ringkas
+
+        wadah <= html.P(
+            "Perambatan balik menghitung turunan dengan aturan rantai; selisih "
+            "hingga menghitungnya dengan menggeser bobotnya sedikit lalu melihat "
+            "galatnya berubah berapa. Keduanya harus sepakat. Kalau tidak, "
+            "perambatan baliknya salah — dan jaringan yang gradiennya salah tetap "
+            "sering terlihat belajar, hanya berhenti di tempat yang keliru.",
+            Class="catatan",
+        )
+
+        bungkus = html.DIV(Class="gulir-x")
+        t = html.TABLE()
+        kepala = html.TR()
+        for h in ("parameter", "nilai", "perambatan balik", "selisih hingga", "galat relatif"):
+            kepala <= html.TH(h)
+        t <= html.THEAD(kepala)
+        isi = html.TBODY()
+        # Diurutkan menurut galat relatif menurun: kalau ada yang meleset,
+        # ia harus muncul di baris pertama, bukan tenggelam di tengah daftar.
+        rincian = sorted(hasil["rincian"], key=lambda r: -r["relatif"])
+        for r in rincian[:14]:
+            nama = (
+                "bias L%d n%d" % (r["lapis"], r["ke"])
+                if r["jenis"] == "bias"
+                else "w L%d n%d←%d" % (r["lapis"], r["ke"], r["dari"])
+            )
+            baris = html.TR()
+            baris <= html.TD(nama)
+            baris <= html.TD(n(r["nilai"], 5), Class="num")
+            baris <= html.TD(n(r["analitik"], 8), Class="num")
+            baris <= html.TD(n(r["numerik"], 8), Class="num")
+            baris <= html.TD(ilmiah(r["relatif"], 2), Class="num")
+            isi <= baris
+        t <= isi
+        bungkus <= t
+        wadah <= bungkus
+
+        if len(rincian) > 14:
+            wadah <= html.P(
+                "Menampilkan 14 dari %d parameter, diurutkan dari galat terbesar."
+                % len(rincian),
+                Class="catatan",
+            )
+
+    # Dijadwalkan supaya pesan "menghitung" sempat tergambar lebih dulu.
+    timer.set_timeout(kerjakan, 20)
+
+
+# ---------------------------------------------------------------------------
+# Perambatan maju dan balik, langkah demi langkah
+# ---------------------------------------------------------------------------
+
+
+def _bobot_terbesar():
+    terbesar = 1e-12
+    for lap in K.jaringan.bobot:
+        for baris in lap:
+            for w in baris:
+                if abs(w) > terbesar:
+                    terbesar = abs(w)
+    return terbesar
+
+
+def gambar_jejak(jejak):
+    """Aliran satu contoh melewati jaringan, maju lalu balik.
+
+    Dua arah digambar dalam satu bidang karena keduanya memang menempuh jalur
+    yang sama. Itulah seluruh gagasan perambatan balik: bobot yang dipakai
+    meneruskan sinyal ke depan adalah bobot yang sama yang dipakai meneruskan
+    galat ke belakang. Menggambarnya sebagai dua diagram terpisah menyembunyikan
+    justru hubungan yang paling perlu dilihat.
+    """
+    ukuran = K.jaringan.ukuran
+    L = 620
+    T = max(230, max(ukuran) * 62 + 80)
+    s = svg("svg")
+
+    def titik(lap, j):
+        x = 70 + lap * (L - 150) / max(1, len(ukuran) - 1)
+        banyak = ukuran[lap]
+        y = 40 + (T - 100) / 2 + (j - (banyak - 1) / 2.0) * 60
+        return x, y
+
+    delta_terbesar = 1e-12
+    for lap_delta in jejak["delta"]:
+        for d in lap_delta:
+            if abs(d) > delta_terbesar:
+                delta_terbesar = abs(d)
+    terbesar_w = _bobot_terbesar()
+
+    # Sisi digambar lebih dulu supaya lingkaran neuron menutupinya, bukan
+    # sebaliknya.
+    for lap in range(len(K.jaringan.bobot)):
+        for j, baris in enumerate(K.jaringan.bobot[lap]):
+            for k, w in enumerate(baris):
+                x1, y1 = titik(lap, k)
+                x2, y2 = titik(lap + 1, j)
+                s <= svg(
+                    "line",
+                    x1="%.1f" % x1,
+                    y1="%.1f" % y1,
+                    x2="%.1f" % x2,
+                    y2="%.1f" % y2,
+                    stroke="var(--positif)" if w >= 0 else "var(--negatif)",
+                    stroke_width="%.2f" % (0.4 + 2.6 * abs(w) / terbesar_w),
+                    opacity="0.5",
+                )
+
+    nama_lapis = ["masukan"] + ["tersembunyi"] * (len(ukuran) - 2) + ["keluaran"]
+    for lap in range(len(ukuran)):
+        x, _ = titik(lap, 0)
+        t = svg("text", x="%.1f" % x, y=20, text_anchor="middle", font_size=10,
+                fill="var(--tinta-3)")
+        t.textContent = nama_lapis[lap]
+        s <= t
+
+        for j in range(ukuran[lap]):
+            cx, cy = titik(lap, j)
+            s <= svg(
+                "circle",
+                cx="%.1f" % cx,
+                cy="%.1f" % cy,
+                r=19,
+                fill="var(--latar-3)",
+                stroke="var(--garis-tegas)",
+                stroke_width=1.4,
+            )
+            t = svg("text", x="%.1f" % cx, y="%.1f" % (cy + 4), text_anchor="middle",
+                    font_size=10, fill="var(--tinta)")
+            t.textContent = n(jejak["aktivasi"][lap][j], 3)
+            s <= t
+
+            # Delta hanya ada untuk lapis yang punya bobot masuk. Lapis masukan
+            # tidak punya, dan menggambar nol di sana akan menyiratkan galatnya
+            # sudah habis di situ padahal ia memang tidak pernah sampai ke sana.
+            if lap > 0:
+                d = jejak["delta"][lap - 1][j]
+                jari = 3 + 9 * abs(d) / delta_terbesar
+                s <= svg(
+                    "circle",
+                    cx="%.1f" % cx,
+                    cy="%.1f" % (cy + 30),
+                    r="%.1f" % jari,
+                    fill="var(--negatif)" if d < 0 else "var(--aksen)",
+                    opacity="0.8",
+                )
+                td = svg("text", x="%.1f" % cx, y="%.1f" % (cy + 34 + jari + 7),
+                         text_anchor="middle", font_size=8, fill="var(--tinta-3)")
+                td.textContent = ilmiah(d, 1)
+                s <= td
+
+    terang = (
+        "Angka di dalam lingkaran adalah keluaran neuron itu pada perambatan "
+        "maju. Bulatan di bawahnya adalah delta \u2014 bagian galat yang sampai ke "
+        "neuron itu pada perambatan balik; makin besar bulatannya makin besar "
+        "pengaruhnya, dan warnanya menyatakan arahnya. Garis di antara neuron "
+        "adalah bobot yang sama untuk kedua arah, dan justru itulah seluruh "
+        "gagasan perambatan balik."
+    )
+    return s, terang, T
+
+
+def tabel_jejak(jejak):
+    """Angka yang sama dengan gambarnya, dalam bentuk yang bisa dibaca teliti."""
+    bungkus = html.DIV(Class="gulir-x")
+    t = html.TABLE()
+    kepala = html.TR()
+    for h in ("neuron", "jumlah berbobot z", "keluaran a = f(z)", "delta", "gradien bias"):
+        kepala <= html.TH(h)
+    t <= html.THEAD(kepala)
+    isi = html.TBODY()
+    for lap in range(len(K.jaringan.bobot)):
+        for j in range(len(K.jaringan.bobot[lap])):
+            baris = html.TR()
+            baris <= html.TD("L%d n%d" % (lap, j + 1))
+            baris <= html.TD(n(jejak["pra"][lap][j], 6), Class="num")
+            baris <= html.TD(n(jejak["aktivasi"][lap + 1][j], 6), Class="num")
+            baris <= html.TD(ilmiah(jejak["delta"][lap][j], 3), Class="num")
+            baris <= html.TD(ilmiah(jejak["gradien_b"][lap][j], 3), Class="num")
+            isi <= baris
+    t <= isi
+    bungkus <= t
+    return bungkus
+
+
+#: Berapa banyak titik data yang ditawarkan sebagai tombol pilihan.
+#:
+#: Kumpulan cincin punya empat puluh titik. Empat puluh tombol bukan pilihan
+#: melainkan dinding, dan delapan sudah cukup memperlihatkan bahwa jejaknya
+#: berbeda dari satu contoh ke contoh lain.
+BATAS_PILIHAN_TITIK = 8
+
+
+def gambar_langkah(_ev=None):
+    wadah = document["langkah"]
+    kosongkan(wadah)
+
+    data = K.data()
+    if not data:
+        return
+    indeks = K.titik_jejak % len(data)
+    x, sasaran = data[indeks]
+    jejak = K.jaringan.telusuri(x, sasaran)
+
+    pemilih = html.DIV(Class="baris")
+    for i in range(min(len(data), BATAS_PILIHAN_TITIK)):
+        xi, ti = data[i]
+        b = html.BUTTON(
+            "(%s, %s) \u2192 %s" % (n(xi[0], 2), n(xi[1], 2), n(ti[0], 0)),
+            Class="tombol",
+            type="button",
+        )
+        b.setAttribute("aria-pressed", "true" if i == indeks else "false")
+
+        def buat(k):
+            def klik(_e):
+                K.titik_jejak = k
+                gambar_langkah()
+
+            return klik
+
+        b.bind("click", buat(i))
+        pemilih <= b
+    wadah <= pemilih
+
+    wadah <= html.P(
+        "Masukan (%s, %s), sasaran %s, ramalan %s \u2014 galat contoh ini %s."
+        % (
+            n(x[0], 3),
+            n(x[1], 3),
+            n(sasaran[0], 0),
+            n(jejak["keluaran"][0], 6),
+            ilmiah(jejak["galat"], 3),
+        ),
+        Class="catatan",
+    )
+
+    s_jejak, t_jejak, tinggi = gambar_jejak(jejak)
+    wadah <= gambar(
+        "Satu contoh melewati jaringan, maju lalu balik",
+        t_jejak,
+        s_jejak,
+        620,
+        tinggi,
+        [
+            ("var(--positif)", "bobot positif"),
+            ("var(--negatif)", "bobot negatif / delta negatif"),
+            ("var(--aksen)", "delta positif"),
+        ],
+    )
+    wadah <= tabel_jejak(jejak)
+    wadah <= html.P(
+        "Angka-angka ini bukan tiruan yang dihitung khusus untuk ditampilkan. "
+        "Uji test_telusuri_sama_dengan_gradien membandingkannya dengan gradien "
+        "yang benar-benar dipakai melatih \u2014 pola bit demi pola bit, pada empat "
+        "aktivasi dan empat bentuk jaringan. Termasuk membedakan nol positif "
+        "dari nol negatif, yang pernah membuat keduanya berbeda.",
+        Class="catatan",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Konformansi lintas bahasa, dijalankan di peramban
+# ---------------------------------------------------------------------------
+
+#: Berapa baris diperiksa sekali jalan sebelum jam ditengok lagi.
+#:
+#: Butir terkecil pekerjaannya, bukan besar potongannya. Menengok jam tiap
+#: baris akan menambah satu penyeberangan ke JavaScript per baris.
+BARIS_SEKALI_JALAN = 20
+
+#: Berapa lama satu potongan konformansi boleh menahan utas tampilan, dalam ms.
+#:
+#: Diukur di Brython, seluruh 3.796 pernyataannya memakan sekitar 2,4 detik.
+#: Dijalankan sekaligus, itu berarti halaman membeku selama 2,4 detik: tombol
+#: tidak bisa ditekan, dan sebagian peramban menawarkan menutup tabnya.
+ANGGARAN_KONFORM_MS = 40.0
+
+#: Anggaran yang dipakai saat tabnya tidak terlihat.
+#:
+#: Peramban membatasi ``setTimeout`` di tab tersembunyi menjadi sekitar sekali
+#: sedetik. Dengan anggaran 40 milidetik itu berarti 40 milidetik pekerjaan per
+#: detik, dan pemeriksaan yang mestinya 2,4 detik berubah menjadi satu menit.
+#:
+#: Di tab tersembunyi tidak ada tampilan yang perlu dijaga tetap lancar, jadi
+#: potongannya diperbesar. Nilainya tetap di bawah ambang "skrip tidak
+#: merespons" mana pun, dan kembali mengecil begitu tabnya dilihat lagi.
+ANGGARAN_KONFORM_SEMBUNYI_MS = 600.0
+
+_KONFORM = {"jalan": False, "vektor_siap": False}
+
+
+def jalankan_konformansi(_ev=None):
+    """Menjalankan ulang seluruh vektor uji Rust di dalam peramban ini.
+
+    # Kenapa ini ada di halaman dan bukan hanya di CI
+
+    Karena CI menjalankan CPython, dan yang dipakai pengunjung adalah Brython.
+    Keduanya Python; keduanya tidak sama. Dua cacat sungguhan di halaman ini
+    hanya muncul di peramban dan tidak bisa ditangkap uji CPython mana pun:
+
+    * ``'%.3e' % 2.803e-08`` menghasilkan ``'0.000e+00'`` — yang membuat
+      pemeriksa gradien melaporkan galat nol untuk setiap parameter, jauh
+      lebih meyakinkan daripada yang sebenarnya;
+    * ``math.ldexp(x, 1074)`` melempar ``OverflowError`` untuk subnormal,
+      sehingga pola bit terkecil tidak bisa disandi sama sekali.
+
+    Keduanya ditemukan dengan menjalankan pemeriksaan ini di sini. Itulah
+    seluruh alasannya: klaim "enam bahasa sepakat sampai ke bit terakhir" tidak
+    boleh menjadi kalimat yang harus dipercaya, kalau ia bisa menjadi tombol
+    yang bisa ditekan.
+    """
+    if _KONFORM["jalan"]:
+        return
+    _KONFORM["jalan"] = True
+
+    wadah = document["konformansi"]
+    kosongkan(wadah)
+    wadah <= html.P("Mengambil berkas vektor…", Class="catatan")
+
+    # Vektornya diambil sekarang, bukan saat halaman dibuka.
+    #
+    # Berkasnya 55 KB setelah dimampatkan — seperempat berat halaman ini — dan
+    # tidak sebaris pun dibutuhkan sampai tombol tadi ditekan. Memuatnya di muka
+    # berarti setiap pengunjung membayar ongkos sebuah tombol yang mungkin tidak
+    # pernah ia tekan.
+    muat_vektor_lalu(mulai_pemeriksaan)
+
+
+def muat_vektor_lalu(lanjut):
+    """Memastikan mesin virtual vektor sudah dimuat, lalu memanggil ``lanjut``.
+
+    Berkasnya menitipkan modulnya lewat ``update_VFS``, mekanisme yang sama
+    dengan pustaka standar Brython. Karena itu ia harus selesai dijalankan
+    sebelum ``import nusa.vektor`` dicoba — dan pemuatan skrip bersifat
+    asinkron, jadi tidak ada jalan lain selain menunggu peristiwanya.
+    """
+    if _KONFORM.get("vektor_siap"):
+        lanjut()
+        return
+
+    alamat = window.URL.new("vendor/vektor_vfs.js", document.baseURI).href
+    skrip = document.createElement("script")
+    skrip.src = alamat
+
+    def sudah(_ev):
+        _KONFORM["vektor_siap"] = True
+        lanjut()
+
+    def gagal(_ev):
+        _KONFORM["jalan"] = False
+        wadah = document["konformansi"]
+        kosongkan(wadah)
+        wadah <= html.P(
+            "Berkas vektor gagal diambil, jadi tidak ada yang bisa diperiksa. "
+            "Periksa sambungan jaringan lalu coba lagi.",
+            Class="galat",
+        )
+
+    skrip.bind("load", sudah)
+    skrip.bind("error", gagal)
+    document.body.appendChild(skrip)
+
+
+def mulai_pemeriksaan():
+    wadah = document["konformansi"]
+    kosongkan(wadah)
+
+    from nusa import konform
+    from nusa.vektor import DATA
+
+    bertahap = konform.Bertahap(lambda nama: DATA[nama])
+    mulai = window.performance.now()
+
+    batang = html.DIV(Class="kemajuan")
+    isi_batang = html.DIV(Class="kemajuan__isi")
+    batang <= isi_batang
+    batang.setAttribute("role", "progressbar")
+    batang.setAttribute("aria-valuemin", "0")
+    batang.setAttribute("aria-valuemax", "100")
+    batang.setAttribute("aria-valuenow", "0")
+    keterangan = html.P("Memeriksa…", Class="catatan")
+    wadah <= keterangan
+    wadah <= batang
+
+    def potongan():
+        anggaran = (
+            ANGGARAN_KONFORM_SEMBUNYI_MS if document.hidden else ANGGARAN_KONFORM_MS
+        )
+        mulai_potongan = window.performance.now()
+        dikerjakan = 0
+        while True:
+            maju = bertahap.kerjakan(BARIS_SEKALI_JALAN)
+            dikerjakan += maju
+            if maju == 0:
+                break
+            if window.performance.now() - mulai_potongan >= anggaran:
+                break
+
+        if dikerjakan:
+            total = bertahap.total_baris
+            # Total baris belum diketahui sampai berkas terakhir dibuka, jadi
+            # yang ditampilkan adalah kemajuan terhadap yang sudah terlihat.
+            # Menampilkannya sebagai persen yang bisa mundur akan lebih
+            # membingungkan daripada menampilkan cacahnya.
+            persen = int(100 * bertahap.baris_selesai / total) if total else 0
+            isi_batang.style.width = "%d%%" % persen
+            batang.setAttribute("aria-valuenow", str(persen))
+            keterangan.text = "Memeriksa… %d baris vektor, %d pernyataan." % (
+                bertahap.baris_selesai,
+                bertahap.laporan.total,
+            )
+            timer.set_timeout(potongan, 0)
+            return
+
+        _KONFORM["jalan"] = False
+        lama_ms = window.performance.now() - mulai
+        tampilkan_konformansi(bertahap.laporan, lama_ms)
+
+    timer.set_timeout(potongan, 0)
+
+
+def tampilkan_konformansi(laporan, lama_ms):
+    wadah = document["konformansi"]
+    kosongkan(wadah)
+
+    lolos = laporan.lolos
+    ringkas = html.P()
+    ringkas <= html.SPAN(
+        "COCOK" if lolos else "TIDAK COCOK",
+        Class="lencana lencana--%s" % ("benar" if lolos else "salah"),
+    )
+    ringkas <= html.SPAN(
+        "  %d pernyataan diperiksa di peramban ini dalam %s detik, %d tidak cocok."
+        % (laporan.total, n(lama_ms / 1000.0, 2), laporan.total_gagal)
+    )
+    wadah <= ringkas
+
+    for pesan in laporan.galat_muat:
+        wadah <= html.P("Vektor tidak terbaca — " + pesan, Class="galat")
+
+    bungkus = html.DIV(Class="gulir-x")
+    t = html.TABLE()
+    kepala = html.TR()
+    for h in ("berkas vektor", "pernyataan", "keterbandingan", "ULP maks", "hasil"):
+        kepala <= html.TH(h)
+    t <= html.THEAD(kepala)
+    isi = html.TBODY()
+    for b in laporan.berkas:
+        baris = html.TR()
+        baris <= html.TD(b.nama)
+        baris <= html.TD(str(b.diperiksa), Class="num")
+        baris <= html.TD(b.tingkat)
+        baris <= html.TD(str(b.ulp_maks), Class="num")
+        baris <= html.TD("cocok" if b.lolos else "%d GAGAL" % b.gagal)
+        isi <= baris
+    t <= isi
+    bungkus <= t
+    wadah <= bungkus
+
+    if laporan.ketidakcocokan:
+        wadah <= html.P(
+            "Pola bit yang berbeda — harapan diambil dari vektor Rust:",
+            Class="catatan",
+        )
+        bungkus2 = html.DIV(Class="gulir-x")
+        t2 = html.TABLE()
+        kepala2 = html.TR()
+        for h in ("baris", "yang diuji", "harap", "dapat", "ULP"):
+            kepala2 <= html.TH(h)
+        t2 <= html.THEAD(kepala2)
+        isi2 = html.TBODY()
+        for k in laporan.ketidakcocokan:
+            baris = html.TR()
+            baris <= html.TD("%s:%d" % (k.berkas, k.nomor))
+            baris <= html.TD(k.konteks)
+            baris <= html.TD(k.harap, Class="num")
+            baris <= html.TD(k.dapat, Class="num")
+            baris <= html.TD("—" if k.ulp is None else str(k.ulp), Class="num")
+            isi2 <= baris
+        t2 <= isi2
+        bungkus2 <= t2
+        wadah <= bungkus2
+
+    # Selisih ULP yang bukan nol dijelaskan, bukan disembunyikan. Angka ini
+    # memang berbeda antara CPython dan Brython — dan pengunjung yang
+    # membandingkan tabel ini dengan keluaran CI berhak tahu kenapa, alih-alih
+    # menyimpulkan salah satunya rusak.
+    tertinggi = max([b.ulp_maks for b in laporan.berkas] or [0])
+    if tertinggi > 0:
+        wadah <= html.P(
+            "Perhatikan kolom ULP maks: sebagian bukan nol. Itu bukan kesalahan "
+            "dan bukan kebetulan. IEEE-754 mewajibkan penjumlahan, pengurangan, "
+            "perkalian, pembagian, dan akar kuadrat dibulatkan dengan benar — "
+            "tetapi tidak exp, log, maupun pow. Python di peramban menghitung "
+            "ketiganya lewat pustaka matematika JavaScript, yang menempuh jalan "
+            "berbeda dari pustaka C yang dipakai CPython di CI. Selisih "
+            "terbesarnya di sini %d ULP, jauh di dalam batas 4 ULP yang memang "
+            "sudah dinyatakan di muka untuk berkas-berkas itu — dan seluruh "
+            "berkas BitExact tetap nol." % tertinggi,
+            Class="catatan",
+        )
+
+    wadah <= html.P(
+        "Angkanya berpindah antar bahasa sebagai pola bit heksadesimal 16 digit, "
+        "bukan sebagai desimal. “BitExact” menuntut kecocokan sampai bit "
+        "terakhir. “NearlyEqual(4)” memberi kelonggaran empat ULP, dan hanya "
+        "untuk perhitungan yang menyentuh exp atau log — IEEE-754 memang tidak "
+        "mewajibkan keduanya dibulatkan dengan benar. "
+        "“CancellingDifference(4)” mengukur kelonggarannya pada skala masukan, "
+        "bukan pada hasil: perolehan informasi adalah selisih dua entropi yang "
+        "hampir sama besar, dan pengurangan seperti itu memperbesar galat "
+        "relatifnya berlipat-lipat.",
+        Class="catatan",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pelatihan
+# ---------------------------------------------------------------------------
+
+#: Berapa lama satu potongan pelatihan boleh menahan utas tampilan, dalam ms.
+#:
+#: Bukan jumlah epoch tetap. Satu epoch memakan waktu yang jauh berbeda antara
+#: XOR dengan empat titik dan cincin dengan empat puluh, antara empat neuron
+#: tersembunyi dan delapan, antara telepon dan meja kerja. Jumlah tetap yang
+#: mulus di satu keadaan akan membekukan halaman di keadaan lain, dan yang
+#: sebenarnya dijaga memang waktunya — jadi waktulah yang diukur.
+ANGGARAN_HITUNG_MS = 24.0
+
+#: Jarak terpendek antara dua penggambaran bagian yang mahal, dalam ms.
+#:
+#: Bidang keputusan berubah pelan. Menggambarnya tiga kali sedetik tidak
+#: memperlihatkan apa pun yang tidak terlihat pada satu setengah kali sedetik,
+#: tetapi menahan utas tampilan tiga kali lebih lama.
+JEDA_BERAT_MS = 700.0
+
+#: Panjang riwayat galat yang disimpan.
+#:
+#: Kurva dengan sepuluh ribu titik tidak lebih informatif daripada kurva dengan
+#: tiga ratus, tetapi menggambarnya ulang tiap potongan membuat halaman
+#: tersendat.
+BATAS_RIWAYAT = 300
+
+
+def satu_potongan():
+    if not K.melatih:
+        return
+    data = K.data()
+    langkah = K.jaringan.langkah
+    mulai = window.performance.now()
+    # Sekurang-kurangnya satu epoch tiap potongan, supaya pelatihan tetap maju
+    # bahkan pada perangkat yang satu epochnya saja sudah melewati anggaran.
+    while True:
+        langkah(data, laju=K.laju, momentum=K.momentum, hitung_galat=False)
+        K.epoch += 1
+        if window.performance.now() - mulai >= ANGGARAN_HITUNG_MS:
+            break
+
+    galat = K.jaringan.galat(data)
+    K.riwayat.append(galat)
+    if len(K.riwayat) > BATAS_RIWAYAT:
+        K.riwayat = K.riwayat[::2]
+
+    if math.isnan(galat) or math.isinf(galat):
+        K.melatih = False
+        # Penjaga, bukan gejala yang diharapkan. Lapis keluaran sigmoid
+        # mengurung galat di bawah 0,25, jadi sejauh yang terukur cabang ini
+        # tidak pernah tercapai. Ia tetap ada karena berhenti dengan pesan
+        # yang jujur lebih baik daripada menggambar NaN di setiap gambar.
+        K.pesan = (
+            "Pelatihan menghasilkan nilai yang tidak berhingga pada epoch %d dan "
+            "dihentikan. Ini tidak diharapkan terjadi pada arsitektur ini — "
+            "kalau Anda melihatnya, setelan yang Anda pakai menemukan sesuatu "
+            "yang belum pernah terukur. Ulang dari awal untuk melanjutkan."
+            % K.epoch
+        )
+        perbarui_tombol()
+        gambar_ulang()
+        return
+
+    sekarang = window.performance.now()
+    berat = sekarang - K.gambar_berat_terakhir >= JEDA_BERAT_MS
+    if berat:
+        K.gambar_berat_terakhir = sekarang
+    gambar_ulang(berat)
+
+    timer.set_timeout(satu_potongan, 0)
+
+
+def perbarui_tombol():
+    document["mulai"].text = "Berhenti" if K.melatih else "Latih"
+
+
+def toggle_latih(_ev):
+    K.melatih = not K.melatih
+    perbarui_tombol()
+    if K.melatih:
+        satu_potongan()
+    else:
+        # Menggambar penuh saat berhenti. Selama melatih bagian yang mahal
+        # sengaja dilewati, jadi tanpa ini yang tertinggal di layar adalah
+        # bidang keputusan dari beberapa ratus milidetik yang lalu — tidak
+        # sepadan dengan angka di sebelahnya.
+        gambar_ulang()
+
+
+def ulang(_ev):
+    K.melatih = False
+    perbarui_tombol()
+    K.bangun()
+    gambar_ulang()
+    kosongkan(document["gradien"])
+
+
+def satu_epoch(_ev):
+    K.jaringan.langkah(K.data(), laju=K.laju, momentum=K.momentum)
+    K.epoch += 1
+    K.riwayat.append(K.jaringan.galat(K.data()))
+    gambar_ulang()
+
+
+# ---------------------------------------------------------------------------
+# Kontrol
+# ---------------------------------------------------------------------------
+
+
+def bidang_geser(label, minimum, maksimum, langkah, nilai, bantuan, saat_ubah, format_nilai=None):
+    if format_nilai is None:
+        format_nilai = lambda v: n(v, 2)  # noqa: E731
+    bungkus = html.LABEL(Class="bidang")
+    baris = html.SPAN(Class="bidang__label")
+    baris <= html.SPAN(label)
+    pembacaan = html.SPAN(format_nilai(nilai), Class="bidang__nilai")
+    baris <= pembacaan
+    bungkus <= baris
+    isian = html.INPUT(type="range", min=minimum, max=maksimum, step=langkah, value=nilai)
+
+    def ubah(ev):
+        v = float(ev.target.value)
+        pembacaan.text = format_nilai(v)
+        saat_ubah(v)
+
+    isian.bind("input", ubah)
+    bungkus <= isian
+    if bantuan:
+        bungkus <= html.SPAN(bantuan, Class="bidang__bantuan")
+    return bungkus
+
+
+def tombol_pilihan(label, pilihan, terpilih, saat_pilih):
+    bungkus = html.DIV(Class="bidang")
+    bungkus <= html.SPAN(label, Class="bidang__label")
+    baris = html.DIV(Class="baris")
+    for nilai, teks in pilihan:
+        b = html.BUTTON(teks, Class="tombol", type="button")
+        b.setAttribute("aria-pressed", "true" if nilai == terpilih else "false")
+
+        def buat(v):
+            def klik(_ev):
+                saat_pilih(v)
+            return klik
+
+        b.bind("click", buat(nilai))
+        baris <= b
+    bungkus <= baris
+    return bungkus
+
+
+def gambar_kontrol():
+    kontrol = document["kontrol"]
+    kosongkan(kontrol)
+
+    def set_dataset(v):
+        K.dataset = v
+        K.bangun()
+        gambar_kontrol()
+        gambar_ulang()
+
+    def set_aktivasi(v):
+        K.aktivasi = v
+        K.bangun()
+        gambar_kontrol()
+        gambar_ulang()
+
+    def set_tersembunyi(v):
+        K.tersembunyi = int(v)
+        K.bangun()
+        gambar_kontrol()
+        gambar_ulang()
+
+    def set_laju(v):
+        K.laju = v
+        perbarui_peringatan()
+
+    def set_momentum(v):
+        K.momentum = v
+        perbarui_peringatan()
+
+    def set_benih(v):
+        K.benih = int(v)
+        K.bangun()
+        gambar_ulang()
+
+    kontrol <= kartu(
+        "Masalah",
+        tombol_pilihan(
+            "Kumpulan data",
+            [(k, v[0]) for k, v in DATASET.items()],
+            K.dataset,
+            set_dataset,
+        ),
+        html.P(
+            "XOR dan cincin tidak terpisahkan garis lurus mana pun. Setel neuron "
+            "tersembunyi ke nol pada keduanya, dan perhatikan jaringannya berhenti "
+            "di sekitar setengah — itulah temuan Minsky dan Papert yang "
+            "menghentikan penelitian bidang ini hampir dua dekade.",
+            Class="catatan",
+        ),
+    )
+
+    kontrol <= kartu(
+        "Bentuk jaringan",
+        bidang_geser(
+            "Neuron tersembunyi", 0, 8, 1, K.tersembunyi,
+            "Nol berarti perceptron satu lapis, tanpa lapis tersembunyi sama sekali.",
+            set_tersembunyi, lambda v: str(int(v)),
+        ),
+        tombol_pilihan(
+            "Aktivasi lapis tersembunyi",
+            [(k, k) for k in AKTIVASI],
+            K.aktivasi,
+            set_aktivasi,
+        ),
+        bidang_geser(
+            "Benih bobot awal", 1, 200, 1, K.benih,
+            "Benih yang sama menghasilkan bobot awal yang sama persis, sehingga hasil pelatihannya bisa diulang dan dibandingkan.",
+            set_benih, lambda v: str(int(v)),
+        ),
+    )
+
+    kontrol <= kartu(
+        "Pelatihan",
+        bidang_geser("Laju belajar", 0.01, 5.0, 0.01, K.laju, None, set_laju),
+        bidang_geser(
+            "Momentum", 0.0, 0.99, 0.01, K.momentum,
+            "Momentum menjumlahkan langkah sebelumnya, sehingga langkah tunaknya laju ÷ (1 − momentum).",
+            set_momentum,
+        ),
+        html.DIV(id="peringatan"),
+    )
+
+    baris = html.DIV(Class="baris")
+    b_mulai = html.BUTTON("Latih", Class="tombol tombol--utama", type="button", id="mulai")
+    b_mulai.bind("click", toggle_latih)
+    baris <= b_mulai
+    b_satu = html.BUTTON("Satu epoch", Class="tombol", type="button")
+    b_satu.bind("click", satu_epoch)
+    baris <= b_satu
+    b_ulang = html.BUTTON("Ulang dari awal", Class="tombol", type="button")
+    b_ulang.bind("click", ulang)
+    baris <= b_ulang
+    kontrol <= baris
+
+    perbarui_peringatan()
+
+
+#: Laju efektif yang, pada arsitektur ini, mulai membuat pelatihan macet.
+#:
+#: Angkanya diukur, bukan ditebak. Menjalankan XOR dan cincin pada tanh,
+#: sigmoid, dan relu memperlihatkan bahwa laju efektif sampai sekitar 50 masih
+#: melatih dengan baik pada tanh dan sigmoid, sementara di atas sekitar 200
+#: keduanya berhenti di keluaran tetap. Batasnya bergantung aktivasi, jadi
+#: angka ini disebut ambang perhatian, bukan ambang kegagalan.
+AMBANG_LAJU = 100.0
+
+
+def perbarui_peringatan():
+    wadah = document["peringatan"]
+    kosongkan(wadah)
+    efektif = K.jaringan.laju_efektif(K.laju, K.momentum)
+    teks = "Laju efektif %s = %s ÷ (1 − %s)." % (n(efektif, 3), n(K.laju, 2), n(K.momentum, 2))
+    if efektif > AMBANG_LAJU:
+        # Perhatikan yang **tidak** dikatakan di sini: bahwa angkanya meluap.
+        # Lapis keluaran jaringan ini sigmoid, sehingga galatnya terkurung di
+        # bawah 0,25 dan tidak pernah bisa meledak menjadi tak hingga. Cara
+        # gagalnya berbeda, dan menyebut cara gagal yang keliru membuat
+        # pembaca mencari gejala yang tidak akan pernah muncul.
+        wadah <= html.P(
+            teks + " Sebesar ini pelatihan biasanya tidak meledak melainkan macet: "
+            "keluarannya jenuh di 0 atau 1, turunan sigmoidnya nyaris nol, dan "
+            "galatnya berhenti di satu angka sambil jaringan menjawab sama untuk "
+            "setiap masukan. Jalankan dan perhatikan — kurvanya mendatar, bukan "
+            "meroket.",
+            Class="galat",
+        )
+    else:
+        wadah <= html.P(teks, Class="catatan")
+
+
+# ---------------------------------------------------------------------------
+# Penyalaan
+# ---------------------------------------------------------------------------
+
+
+def mulai():
+    document["memuat"].style.display = "none"
+    # Atribut ``hidden`` dilepas, bukan ditimpa dengan ``style.display``.
+    # Menimpanya memang berhasil menampilkan elemennya, tetapi meninggalkan
+    # ``hidden`` yang tetap terbaca pembaca layar sebagai "tersembunyi" —
+    # tampilan dan makna jadi bertentangan.
+    document["aplikasi"].removeAttribute("hidden")
+    gambar_kontrol()
+    gambar_ulang()
+    document["periksa"].bind("click", jalankan_periksa_gradien)
+    document["jalankan-konformansi"].bind("click", jalankan_konformansi)
+    # Angka ini dihitung, bukan diketik: kalau modul fx berubah dan pola bitnya
+    # bergeser, teks di halaman ikut bergeser dan perbedaannya terlihat.
+    document["bukti-bit"].text = fx.ke_hex(0.1)
+
+
+mulai()

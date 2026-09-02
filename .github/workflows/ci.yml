@@ -1,0 +1,139 @@
+# neuronusa — uji, adu, bangun, terbitkan.
+#
+# Gerbang yang harus dilewati sebelum apa pun sampai ke pengguna:
+#
+#   1. Python  — 58 uji mesin, lalu konformansi terhadap 3.796 pernyataan
+#                berpola bit yang dihasilkan implementasi Rust. Python adalah
+#                implementasi keenam setelah Rust, Go, PL/SQL, Lua, dan Swift.
+#                Dijalankan di tiga versi CPython, karena "berjalan di mesin
+#                saya" bukan pernyataan yang bisa diperiksa siapa pun.
+#   2. Web     — bangun, anggaran ukuran, dan pemeriksaan bahwa mesin Python
+#                benar-benar sampai ke dalam hasil build.
+#   3. Terbit  — hanya bila keduanya lolos, dan hanya dari `main`.
+#
+# Yang **tidak** bisa dijamin CI ini: bahwa Brython di dalam peramban
+# berperilaku sama dengan CPython. Dua cacat sungguhan di proyek ini hanya
+# muncul di sana — pemformatan `'%.3e'` yang salah, dan `math.ldexp` yang
+# meluap untuk subnormal — dan tidak satu pun bisa ditangkap uji CPython.
+# Karena itu konformansi yang sama bisa dijalankan ulang di dalam peramban
+# lewat tombol di halamannya. Perbedaan runtime hanya bisa ditemukan dengan
+# menjalankan ujinya di runtime itu.
+#
+# .Deckyx
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python — uji dan konformansi
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Mesinnya tidak memakai satu pun modul di luar `math`, jadi rentang
+        # versi yang luas memang wajar diharapkan berhasil — dan kalau suatu
+        # saat tidak, itu kabar yang harus terdengar, bukan yang tersembunyi.
+        python: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Nama berkas vektornya ditulis tetap di dalam pemeriksanya, tetapi
+      # jumlahnya diperiksa di sini juga. Berkas yang hilang akan menggagalkan
+      # konformansi dengan pesan yang jelas, bukan diam-diam mengurangi jumlah
+      # pernyataan yang diperiksa.
+      - name: Pastikan seluruh berkas vektor ada
+        run: |
+          jumlah=$(ls conformance/vectors/*.tsv | wc -l)
+          if [ "$jumlah" -ne 9 ]; then
+            echo "Diharapkan 9 berkas vektor, ditemukan $jumlah."
+            exit 1
+          fi
+
+      # Mesin ini berjalan di dua tempat: CPython di sini, dan Brython di dalam
+      # peramban. Brython tidak punya numpy, decimal, maupun random — dan
+      # kegagalannya baru terlihat saat halamannya dibuka, jauh setelah CI
+      # hijau. Karena itu impor terlarang dilarang di sini, bukan di sana.
+      - name: Pastikan mesin tidak mengimpor apa pun di luar math
+        run: |
+          if grep -nE "^\s*(import|from)\s+(numpy|decimal|random|struct|time|os|sys|re)\b" py/nusa/*.py; then
+            echo "Modul di atas tidak tersedia penuh di Brython."
+            echo "Lihat catatan di py/nusa/__init__.py."
+            exit 1
+          fi
+
+      - name: Uji mesin
+        run: python -m unittest discover -s py/uji -p "test_*.py" -v
+
+      - name: Adu Python lawan Rust
+        run: python conformance/jalankan.py
+
+  web:
+    name: Web — bangun dan anggaran
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Audit paket npm
+        run: npm audit --audit-level=high
+
+      - name: Bangun produksi
+        run: npm run build
+
+      # Anggaran ini sekaligus memeriksa isi: bukan hanya bahwa berkasnya ada,
+      # melainkan bahwa keenam modul Python benar-benar ada di dalamnya. Mesin
+      # yang hilang dari hasil build tidak menggagalkan build maupun uji mana
+      # pun; halamannya hanya akan berhenti di layar "memuat" selamanya.
+      - name: Anggaran ukuran dan kelengkapan
+        run: npm run budget
+
+      # Hasil kemasan wajib bisa diurai sebagai Python yang sah, dan wajib
+      # memuat vektor yang sama dengan yang ada di cakram. Kemasan yang rusak
+      # tetap sah sebagai JavaScript, tetap lolos anggaran, dan tetap
+      # menghasilkan halaman yang mati.
+      - name: Pastikan kemasan Python bisa diurai dan cocok dengan sumbernya
+        run: node scripts/periksa-kemasan.mjs
+
+      - name: Simpan hasil build
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  terbit:
+    name: Terbitkan ke GitHub Pages
+    needs: [python, web]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.terbit.outputs.page_url }}
+    steps:
+      - name: Terbitkan
+        id: terbit
+        uses: actions/deploy-pages@v4

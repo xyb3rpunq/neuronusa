@@ -1,0 +1,633 @@
+/*
+ * Gaya neuronusa.
+ *
+ * Ditulis tangan, tanpa kerangka kerja. Halaman ini sudah membawa penerjemah
+ * Python berukuran 1,3 MB ke peramban pengguna; menambahkan kerangka CSS
+ * berukuran ratusan kilobyte di atasnya untuk selusin komponen adalah biaya
+ * yang tidak bisa dibenarkan.
+ *
+ * Warnanya didefinisikan sebagai token, dan seluruh token gelap ditulis di
+ * satu tempat. Sebuah warna yang satu-satunya definisinya berada di dalam
+ * blok media akan hilang sama sekali pada mode yang lain.
+ *
+ * .Deckyx
+ */
+
+:root {
+  --latar: #f8fafc;
+  --latar-2: #ffffff;
+  --latar-3: #eef2f7;
+  --tinta: #0f172a;
+  --tinta-2: #334155;
+  --tinta-3: #64748b;
+  --garis: #e2e8f0;
+  --garis-tegas: #cbd5e1;
+  --aksen: #0d9488;
+  --aksen-tinta: #ffffff;
+  --aksen-lembut: #ccfbf1;
+  --positif: #0d9488;
+  --negatif: #db2777;
+  --kelas-a: #6366f1;
+  --kelas-b: #f59e0b;
+  --bahaya: #b91c1c;
+  --bahaya-latar: #fef2f2;
+  --benar: #047857;
+  --benar-latar: #ecfdf5;
+  --bayang: 0 1px 2px rgb(15 23 42 / 6%), 0 8px 24px -12px rgb(15 23 42 / 18%);
+  --lengkung: 12px;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --teks: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="terang"]) {
+    --latar: #0b1020;
+    --latar-2: #131a2e;
+    --latar-3: #1b2440;
+    --tinta: #e2e8f0;
+    --tinta-2: #b6c2d4;
+    --tinta-3: #8b9ab3;
+    --garis: #263149;
+    --garis-tegas: #3a4767;
+    --aksen: #5eead4;
+    --aksen-tinta: #06251f;
+    --aksen-lembut: #113a34;
+    --positif: #5eead4;
+    --negatif: #f472b6;
+    --kelas-a: #818cf8;
+    --kelas-b: #fbbf24;
+    --bahaya: #fca5a5;
+    --bahaya-latar: #3b1418;
+    --benar: #6ee7b7;
+    --benar-latar: #0d2c22;
+    --bayang: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px -16px rgb(0 0 0 / 70%);
+  }
+}
+
+:root[data-tema="gelap"] {
+  --latar: #0b1020;
+  --latar-2: #131a2e;
+  --latar-3: #1b2440;
+  --tinta: #e2e8f0;
+  --tinta-2: #b6c2d4;
+  --tinta-3: #8b9ab3;
+  --garis: #263149;
+  --garis-tegas: #3a4767;
+  --aksen: #5eead4;
+  --aksen-tinta: #06251f;
+  --aksen-lembut: #113a34;
+  --positif: #5eead4;
+  --negatif: #f472b6;
+  --kelas-a: #818cf8;
+  --kelas-b: #fbbf24;
+  --bahaya: #fca5a5;
+  --bahaya-latar: #3b1418;
+  --benar: #6ee7b7;
+  --benar-latar: #0d2c22;
+  --bayang: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px -16px rgb(0 0 0 / 70%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  background: var(--latar);
+  color: var(--tinta);
+  font-family: var(--teks);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--latar-3);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+a {
+  color: var(--aksen);
+}
+
+/* Fokus dibuat mencolok dengan sengaja. Cincin fokus yang samar sama tidak
+   bergunanya dengan tidak ada cincin fokus sama sekali. */
+:focus-visible {
+  outline: 3px solid var(--aksen);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.lewati {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--aksen);
+  color: var(--aksen-tinta);
+  padding: 0.6rem 1rem;
+  z-index: 10;
+  border-radius: 0 0 8px 0;
+}
+
+.lewati:focus {
+  left: 0;
+}
+
+/* --- kepala ------------------------------------------------------------ */
+
+.kepala {
+  background: linear-gradient(160deg, var(--latar-2), var(--latar-3));
+  border-bottom: 1px solid var(--garis);
+}
+
+.kepala__isi {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 2.5rem;
+}
+
+.kepala__cap {
+  margin: 0 0 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+
+.kepala__judul {
+  margin: 0;
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.kepala__ringkas {
+  margin: 0.9rem 0 0;
+  max-width: 62ch;
+  color: var(--tinta-2);
+  font-size: 1.05rem;
+}
+
+/* --- tata letak -------------------------------------------------------- */
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 3rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+#aplikasi {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  align-items: start;
+}
+
+#aplikasi[hidden] {
+  display: none;
+}
+
+#aplikasi > .kartu {
+  grid-column: 1 / -1;
+}
+
+.tumpuk,
+.kolom-kontrol,
+.kolom-keluaran {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.kolom-kontrol {
+  position: sticky;
+  top: 1rem;
+}
+
+@media (max-width: 900px) {
+  #aplikasi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kolom-kontrol {
+    position: static;
+  }
+}
+
+/* --- kartu ------------------------------------------------------------- */
+
+.kartu {
+  background: var(--latar-2);
+  border: 1px solid var(--garis);
+  border-radius: var(--lengkung);
+  padding: 1.25rem;
+  box-shadow: var(--bayang);
+  min-width: 0;
+}
+
+.kartu > :first-child {
+  margin-top: 0;
+}
+
+.kartu > :last-child {
+  margin-bottom: 0;
+}
+
+.kartu__judul {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.kartu--tesis {
+  border-left: 4px solid var(--aksen);
+}
+
+.kartu--tesis p {
+  max-width: 72ch;
+}
+
+/* --- memuat ------------------------------------------------------------ */
+
+.memuat {
+  background: var(--latar-2);
+  border: 1px dashed var(--garis-tegas);
+  border-radius: var(--lengkung);
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+
+.memuat__teks {
+  margin: 0;
+  font-weight: 600;
+}
+
+.memuat__catatan {
+  margin: 0.5rem auto 0;
+  max-width: 56ch;
+  color: var(--tinta-3);
+  font-size: 0.9rem;
+}
+
+/* --- hasil ------------------------------------------------------------- */
+
+.hasil {
+  background: var(--latar-2);
+  border: 1px solid var(--garis);
+  border-left: 4px solid var(--aksen);
+  border-radius: var(--lengkung);
+  padding: 1rem 1.25rem;
+  box-shadow: var(--bayang);
+}
+
+.hasil__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+
+.hasil__nilai {
+  font-family: var(--mono);
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--aksen);
+}
+
+.hasil__tafsir {
+  margin-top: 0.35rem;
+  color: var(--tinta-2);
+  font-size: 0.92rem;
+}
+
+/* --- gambar ------------------------------------------------------------ */
+
+.viz {
+  margin: 0 0 0.5rem;
+}
+
+.viz + .viz,
+.viz + .gulir-x {
+  margin-top: 1.25rem;
+}
+
+.viz__judul {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+
+/* Berlaku untuk SVG maupun kanvas: keduanya isi gambar, dan keduanya harus
+   mengecil mengikuti lebar kolomnya alih-alih meluber keluar. */
+.viz__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  background: var(--latar-3);
+  border: 1px solid var(--garis);
+  border-radius: 8px;
+}
+
+/* Kanvas bidang keputusan digambar bujur sangkar. Tanpa batas lebar ia akan
+   melebar mengikuti kolom dan ikut menaikkan tingginya, mendorong sisa
+   halaman jauh ke bawah di layar lebar. */
+canvas.viz__svg {
+  max-width: 320px;
+}
+
+.viz__kunci {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--tinta-2);
+}
+
+.viz__kunci li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.viz__contoh {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 3px;
+  border: 1px solid var(--garis-tegas);
+  flex: none;
+}
+
+.viz__terang {
+  margin: 0.6rem 0 0;
+  color: var(--tinta-2);
+  font-size: 0.9rem;
+  max-width: 78ch;
+}
+
+/* --- bidang kendali ---------------------------------------------------- */
+
+.bidang {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.bidang:last-child {
+  margin-bottom: 0;
+}
+
+.bidang__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--tinta-2);
+  margin-bottom: 0.3rem;
+}
+
+.bidang__nilai {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--aksen);
+}
+
+.bidang__bantuan {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--tinta-3);
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--aksen);
+  margin: 0;
+}
+
+.baris {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tombol {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--garis-tegas);
+  background: var(--latar-3);
+  color: var(--tinta);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tombol:hover {
+  border-color: var(--aksen);
+}
+
+.tombol[aria-pressed="true"] {
+  background: var(--aksen-lembut);
+  border-color: var(--aksen);
+  color: var(--tinta);
+  font-weight: 600;
+}
+
+.tombol--utama {
+  background: var(--aksen);
+  border-color: var(--aksen);
+  color: var(--aksen-tinta);
+  font-weight: 600;
+}
+
+/* --- tabel ------------------------------------------------------------- */
+
+.gulir-x {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--garis);
+  white-space: nowrap;
+}
+
+th {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+  font-weight: 600;
+}
+
+td.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- pesan ------------------------------------------------------------- */
+
+.catatan {
+  color: var(--tinta-3);
+  font-size: 0.88rem;
+  margin: 0.5rem 0;
+  max-width: 78ch;
+}
+
+.galat {
+  background: var(--bahaya-latar);
+  border: 1px solid var(--bahaya);
+  border-radius: 8px;
+  color: var(--bahaya);
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.galat__rincian {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  color: var(--tinta-2);
+}
+
+.lencana {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 5px;
+  margin-right: 0.5rem;
+}
+
+.lencana--benar {
+  background: var(--benar-latar);
+  color: var(--benar);
+  border: 1px solid var(--benar);
+}
+
+.lencana--salah {
+  background: var(--bahaya-latar);
+  color: var(--bahaya);
+  border: 1px solid var(--bahaya);
+}
+
+/* --- kemajuan ---------------------------------------------------------- */
+
+.kemajuan {
+  height: 8px;
+  background: var(--latar-3);
+  border: 1px solid var(--garis);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.5rem 0 1rem;
+}
+
+.kemajuan__isi {
+  height: 100%;
+  width: 0;
+  background: var(--aksen);
+  transition: width 0.12s linear;
+}
+
+#konformansi table,
+#gradien table {
+  margin-top: 0.5rem;
+}
+
+#konformansi > p:first-child,
+#gradien > p:first-child {
+  margin-top: 0.75rem;
+}
+
+/* --- kamus ------------------------------------------------------------- */
+
+.kamus {
+  margin: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.kamus dt {
+  font-weight: 700;
+  color: var(--aksen);
+}
+
+.kamus dd {
+  margin: 0.15rem 0 0;
+  color: var(--tinta-2);
+  max-width: 78ch;
+}
+
+.bukti {
+  font-size: 0.92rem;
+  color: var(--tinta-2);
+}
+
+/* --- kaki -------------------------------------------------------------- */
+
+.kaki {
+  border-top: 1px solid var(--garis);
+  background: var(--latar-2);
+  padding: 1.75rem 1.25rem;
+  color: var(--tinta-3);
+  font-size: 0.88rem;
+}
+
+.kaki p {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.kaki__tautan {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Animasi hanya untuk yang memintanya. Kurva galat yang bergerak tiap
+   potongan pelatihan bisa memicu ketidaknyamanan pada sebagian orang. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

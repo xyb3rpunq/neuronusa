@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>neuronusa — jaringan syaraf dengan gradien yang bisa dibuktikan</title>
+    <meta
+      name="description"
+      content="Jaringan syaraf tiruan yang gradiennya bisa dilihat satu per satu dan dibuktikan benar dengan selisih hingga. Mesinnya Python asli, dijalankan di dalam peramban."
+    />
+    <meta name="author" content="Daniel Hutajulu (.Deckyx)" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b1020" />
+
+    <!--
+      Kebijakan keamanan isi.
+
+      'unsafe-eval' ada di sini karena Brython memang membutuhkannya: ia
+      menerjemahkan Python menjadi JavaScript lalu menjalankannya dengan
+      `new Function`. Itu inti cara kerjanya, bukan kecerobohan yang bisa
+      ditambal. Karena itu sisanya dikunci serapat mungkin — tidak ada
+      script-src selain 'self', tidak ada koneksi keluar sama sekali,
+      tidak ada kerangka, tidak ada objek.
+
+      Tidak ada satu pun berkas diambil dari CDN. Mesin yang menjalankan kode
+      di peramban pengguna tidak pantas diambil dari tempat yang bisa berubah
+      tanpa sepengetahuan siapa pun.
+
+      `frame-ancestors` sengaja tidak ada di sini: arahan itu diabaikan kalau
+      dikirim lewat <meta>, dan menuliskannya hanya menghasilkan peringatan di
+      konsol tanpa perlindungan apa pun. Ia dikirim sebagai tajuk HTTP dari
+      GitHub Pages.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+
+    <link rel="stylesheet" href="/src/gaya.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Runtime Brython. Dimuat sebagai skrip biasa, bukan modul: ia memasang
+      __BRYTHON__ pada objek global, dan modul ES punya lingkup sendiri.
+
+      Berkas pustaka standarnya sudah dipangkas dari 4,6 MB menjadi sekitar
+      89 KB oleh scripts/ekstrak-stdlib.mjs, karena halaman ini hanya memakai
+      lima modul dari dalamnya — math, browser, browser.svg, browser.timer,
+      dan _svg.
+
+      Berkas ketiga berisi mesin Python situs ini sendiri, dikemas dengan
+      mekanisme yang sama. Alasannya ada di scripts/salin-py.mjs: impor
+      Brython memakai XHR sinkron, dan lima impor berturut-turut berarti utas
+      tampilan membeku lima kali sebelum sebaris pun antarmuka tergambar.
+    -->
+    <script src="/vendor/brython.min.js" defer></script>
+    <script src="/vendor/brython_stdlib_mini.js" defer></script>
+    <script src="/vendor/nusa_vfs.js" defer></script>
+    <script type="module" src="/src/nyalakan.ts"></script>
+  </head>
+
+  <body>
+    <a class="lewati" href="#utama">Lewati ke isi</a>
+
+    <header class="kepala">
+      <div class="kepala__isi">
+        <p class="kepala__cap">IND323 · Kecerdasan Buatan · .Deckyx</p>
+        <h1 class="kepala__judul">neuronusa</h1>
+        <p class="kepala__ringkas">
+          Jaringan syaraf tiruan yang gradiennya bisa dilihat satu per satu —
+          dan dibuktikan benar. Mesinnya Python asli, dijalankan di dalam
+          peramban Anda, bukan di server mana pun.
+        </p>
+      </div>
+    </header>
+
+    <main id="utama">
+      <section class="kartu kartu--tesis">
+        <h2 class="kartu__judul">Kenapa situs ini ada</h2>
+        <p>
+          Hampir setiap demo jaringan syaraf memperlihatkan kurva galat yang
+          menurun, lalu berhenti di situ. Kurva galat tidak membuktikan apa pun.
+          <strong
+            >Jaringan yang perambatan baliknya salah tetap sering
+            &ldquo;belajar&rdquo;</strong
+          >
+          — hanya lebih lambat dan berhenti di tempat yang keliru — dan kurvanya
+          tetap terlihat menurun dengan meyakinkan.
+        </p>
+        <p>
+          Yang membedakan halaman ini: setiap turunan dihitung ulang dengan
+          selisih hingga, lalu ditampilkan berdampingan dengan hasil perambatan
+          balik beserta galat relatifnya. Itu satu-satunya cara memisahkan
+          perambatan balik yang benar dari yang kebetulan bekerja.
+        </p>
+      </section>
+
+      <div id="memuat" class="memuat">
+        <p class="memuat__teks">
+          Menyalakan penerjemah Python di dalam peramban&hellip;
+        </p>
+        <p class="memuat__catatan">
+          Kalau tulisan ini tidak hilang, JavaScript dimatikan atau berkas
+          runtime gagal dimuat. Tidak ada cadangan di server: seluruh
+          perhitungan di halaman ini memang terjadi di perangkat Anda.
+        </p>
+      </div>
+
+      <noscript>
+        <p class="galat">
+          Halaman ini menjalankan Python di dalam peramban lewat Brython, dan
+          Brython berjalan di atas JavaScript. Tanpa JavaScript tidak ada yang
+          bisa dihitung — dan tidak ada versi server yang bisa menggantikannya,
+          karena memang tidak ada server.
+        </p>
+      </noscript>
+
+      <div id="aplikasi" hidden>
+        <div id="kontrol" class="kolom-kontrol"></div>
+        <!--
+          Dua wadah, bukan satu.
+
+          Isi yang murah digambar ulang tiap potongan pelatihan; yang mahal —
+          bidang keputusan, peta bobot, kedua tabel — hanya beberapa kali per
+          detik. Memisahkannya di sini membuat penggambaran sebagian menjadi
+          sekadar mengisi ulang satu wadah, alih-alih membongkar seluruh kolom
+          dan menyusunnya kembali.
+        -->
+        <div class="kolom-keluaran">
+          <div id="keluaran-ringkas" class="tumpuk"></div>
+          <div id="keluaran-berat" class="tumpuk"></div>
+        </div>
+
+        <section class="kartu">
+          <h2 class="kartu__judul">Langkah demi langkah</h2>
+          <p>
+            Pilih satu titik data, dan ikuti perjalanannya melewati jaringan:
+            maju sampai menjadi ramalan, lalu balik sebagai galat yang
+            dibagikan ke tiap neuron. Angka-angkanya diambil dari perhitungan
+            yang sama dengan yang dipakai melatih &mdash; bukan dihitung ulang
+            khusus untuk ditampilkan.
+          </p>
+          <div id="langkah"></div>
+        </section>
+
+        <section class="kartu">
+          <h2 class="kartu__judul">Pemeriksaan gradien</h2>
+          <p>
+            Tekan tombol di bawah untuk menghitung ulang setiap turunan dengan
+            selisih tengah <code>(f(w+h) &minus; f(w&minus;h)) / 2h</code>, lalu
+            membandingkannya dengan hasil perambatan balik. Keduanya harus
+            sepakat sampai sekitar sepuluh digit.
+          </p>
+          <button id="periksa" class="tombol tombol--utama" type="button">
+            Periksa seluruh gradien
+          </button>
+          <div id="gradien"></div>
+        </section>
+      </div>
+
+      <section class="kartu">
+        <h2 class="kartu__judul">Catatan dan definisi</h2>
+        <dl class="kamus">
+          <dt>Perceptron</dt>
+          <dd>
+            Satu neuron: jumlah berbobot dari masukannya, ditambah bias, lalu
+            dilewatkan fungsi aktivasi. Tanpa lapis tersembunyi ia hanya bisa
+            menarik <em>satu garis lurus</em> di ruang masukan.
+          </dd>
+
+          <dt>Batas Minsky&ndash;Papert</dt>
+          <dd>
+            Pada 1969 Minsky dan Papert membuktikan perceptron satu lapis tidak
+            bisa memisahkan XOR. Pembuktian itu benar, dan salah dipahami
+            sebagai bukti bahwa jaringan syaraf tidak berguna; pendanaan
+            bidangnya nyaris berhenti selama hampir dua dekade. Setel neuron
+            tersembunyi ke nol di atas, dan Anda bisa melihat batas itu
+            sendiri alih-alih membaca kutipannya.
+          </dd>
+
+          <dt>Perambatan maju</dt>
+          <dd>
+            Menjalankan masukan melewati setiap lapis sampai keluar sebagai
+            ramalan. Keluaran antara tiap lapis ikut disimpan &mdash; bukan
+            untuk ditampilkan, melainkan karena perambatan balik
+            membutuhkannya, dan menghitungnya ulang akan menggandakan seluruh
+            biaya pelatihan.
+          </dd>
+
+          <dt>Perambatan balik</dt>
+          <dd>
+            Aturan rantai yang diterapkan mundur melewati lapis-lapis jaringan.
+            Bobot yang sama dipakai dua kali: sekali untuk meneruskan sinyal ke
+            depan, sekali untuk meneruskan galat ke belakang. Itulah seluruh
+            gagasannya.
+          </dd>
+
+          <dt>Gradien</dt>
+          <dd>
+            Turunan galat terhadap setiap bobot: seberapa banyak galat berubah
+            kalau bobot itu digeser sedikit. Tanda gradien memberi tahu arah
+            mana yang memperburuk; pelatihan bergerak ke arah sebaliknya.
+          </dd>
+
+          <dt>Pemeriksaan gradien</dt>
+          <dd>
+            Menghitung ulang tiap turunan secara numerik dengan menggeser
+            bobotnya sejauh <code>h</code> ke dua arah. Memakai selisih tengah,
+            bukan selisih maju: galat selisih maju sebanding dengan
+            <code>h</code>, selisih tengah sebanding dengan <code>h&sup2;</code>,
+            dan selisih itu menentukan apakah cacat sungguhan bisa dibedakan
+            dari derau pembulatan.
+          </dd>
+
+          <dt>Laju belajar</dt>
+          <dd>
+            Panjang langkah tiap epoch. Terlalu kecil, pelatihan merangkak;
+            terlalu besar, langkahnya melewati titik terendah lalu memantul
+            makin jauh sampai angkanya meluap menjadi tak hingga.
+          </dd>
+
+          <dt>Momentum</dt>
+          <dd>
+            Menjumlahkan sebagian langkah sebelumnya ke langkah sekarang.
+            Langkah tunaknya menjadi <code>laju &divide; (1 &minus; momentum)</code>,
+            sehingga momentum 0,9 <em>mengalikan sepuluh</em> laju efektifnya.
+            Itulah sebabnya menyalakan momentum pada laju yang sudah besar
+            hampir selalu membuat pelatihan meledak.
+          </dd>
+
+          <dt>Penskalaan Xavier</dt>
+          <dd>
+            Rentang bobot awal yang menyempit seiring bertambahnya masukan tiap
+            neuron. Tanpa itu, jumlah berbobot di lapis lebar langsung jatuh di
+            daerah datar sigmoid, turunannya nyaris nol, dan jaringannya
+            praktis tidak pernah mulai belajar.
+          </dd>
+
+          <dt>Galat kuadrat rata-rata</dt>
+          <dd>
+            Rata-rata kuadrat selisih antara ramalan dan sasaran, dibagi dua.
+            Pembagian dua itu bukan pemanis: ia membuat turunannya menjadi
+            <code>(y &minus; t)</code> tanpa faktor dua yang menempel di
+            mana-mana.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="kartu">
+        <h2 class="kartu__judul">Enam bahasa, angka yang sama persis</h2>
+        <p>
+          Algoritma inti di halaman ini &mdash; certainty factor, Bayes,
+          himpunan kabur, entropi, perolehan informasi, dan pembangkit acak
+          SplitMix64 &mdash; sudah ditulis enam kali dalam enam bahasa: Rust,
+          Go, PL/SQL Oracle, Lua, Swift, dan Python. Keenamnya diadu terhadap
+          berkas vektor yang sama, dan
+          <strong>3.796 pernyataan cocok sampai ke bit terakhir</strong>.
+        </p>
+        <p>
+          Angkanya berpindah sebagai pola bit heksadesimal 16 digit, bukan
+          sebagai desimal. Desimal tidak memenuhi syarat: pengukuran pada
+          proyek pendahulunya menemukan sebuah pengurai desimal yang salah
+          membulat sebesar 1 ULP pada 27.548 dari 200.000 nilai uji.
+        </p>
+        <p class="bukti">
+          Sebagai bukti mesinnya benar-benar hidup di peramban Anda: pola bit
+          <code>0.1</code> menurut modul <code>fx</code> yang sedang berjalan
+          adalah <code id="bukti-bit">&hellip;</code>. Nilai yang benar adalah
+          <code>3fb999999999999a</code>.
+        </p>
+
+        <p>
+          Tetapi satu angka bukan bukti. Tekan tombol di bawah dan seluruh
+          3.796 pernyataan itu dijalankan ulang <em>sekarang, di peramban
+          Anda</em>, terhadap berkas vektor yang sama persis dengan yang
+          dipakai CI &mdash; bukan angka yang diketik ke dalam halaman ini.
+        </p>
+
+        <p class="catatan">
+          Ini bukan hiasan. Dua cacat sungguhan di halaman ini hanya muncul di
+          peramban dan tidak bisa ditangkap uji CPython mana pun: penerjemahnya
+          memformat <code>'%.3e'</code> dengan salah, dan
+          <code>math.ldexp</code> meluap untuk bilangan subnormal. Keduanya
+          ditemukan justru dengan menjalankan pemeriksaan ini di sini.
+        </p>
+
+        <button id="jalankan-konformansi" class="tombol tombol--utama" type="button">
+          Jalankan 3.796 pemeriksaan di peramban ini
+        </button>
+        <div id="konformansi"></div>
+      </section>
+    </main>
+
+    <footer class="kaki">
+      <p>
+        <strong>neuronusa</strong> &mdash; bagian dari empat situs IND323 yang
+        dibangun Daniel Hutajulu (<code>.Deckyx</code>).
+      </p>
+      <p class="kaki__tautan">
+        <a href="https://github.com/xyb3rpunq/neuronusa">Kode sumber</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://xyb3rpunq.github.io/ai-atlas/">ai-atlas</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://xyb3rpunq.github.io/kecerdasan-buatan/">kecerdasan-buatan</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://xyb3rpunq.github.io/ind323-ai-lab/">ind323-ai-lab</a>
+      </p>
+    </footer>
+  </body>
+</html>

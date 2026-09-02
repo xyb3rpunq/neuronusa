@@ -1,0 +1,26 @@
+# Hasil build
+dist/
+node_modules/
+
+# Dihasilkan scripts/salin-py.mjs dan scripts/ekstrak-stdlib.mjs.
+#
+# Seluruh isi public/vendor/ adalah salinan atau kemasan dari sumber yang sudah
+# ada di repositori ini: runtime Brython dari node_modules, mesin Python dari
+# py/nusa/ dan src/app.py, vektor uji dari conformance/vectors/.
+#
+# Menyimpannya di git berarti dua tempat yang harus dijaga tetap sepadan, dan
+# yang tertinggal selalu yang dihasilkan — persis berkas yang benar-benar
+# dijalankan peramban.
+public/vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Penyunting dan sistem berkas
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

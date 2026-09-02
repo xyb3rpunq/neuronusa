@@ -1,0 +1,28 @@
+{
+  "name": "neuronusa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Jaringan syaraf tiruan dengan gradien yang bisa dilihat dan dibuktikan benar. Mesinnya Python, dijalankan di peramban lewat Brython.",
+  "scripts": {
+    "dev": "node scripts/salin-py.mjs && vite",
+    "build": "node scripts/salin-py.mjs && vite build",
+    "preview": "vite preview",
+    "test": "python -m unittest discover -s py/uji -p \"test_*.py\"",
+    "conform": "python conformance/jalankan.py",
+    "budget": "node scripts/budget.mjs",
+    "audit:all": "npm run test && npm run conform && npm run build && npm run budget && npm run kemasan",
+    "kemasan": "node scripts/periksa-kemasan.mjs"
+  },
+  "author": "Daniel Hutajulu (.Deckyx)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xyb3rpunq/neuronusa.git"
+  },
+  "homepage": "https://xyb3rpunq.github.io/neuronusa/",
+  "devDependencies": {
+    "brython": "^3.14.3",
+    "vite": "^8.2.2"
+  }
+}
