@@ -412,11 +412,11 @@ class Keadaan:
                 # apa pun, ia hanya menerima tautan yang tidak lengkap.
                 if not self.data_sendiri:
                     self.dataset = "xor"
-                    self._data = DATASET["xor"][1]()
+                    self._data = DATASET["xor"]()
                 else:
                     self._data = self.data_sendiri
             else:
-                self._data = DATASET[self.dataset][1]()
+                self._data = DATASET[self.dataset]()
         return self._data
 
     def bangun(self):
@@ -881,7 +881,8 @@ def banding_cacat(data, galat, benar):
     terlihat lebih baik. Kalimat yang mengasumsikan salah satu arah akan
     salah separuh waktu.
     """
-    label, _tempat, tertangkap, _p = CACAT[K.cacat]
+    _tempat, tertangkap = CACAT[K.cacat]
+    label = tr("cacat_nama_" + K.cacat)
     galat_benar = K.bayangan.galat(data)
     benar_bayangan = sum(1 for x, t in data if round(K.bayangan.ramal(x)[0]) == int(t[0]))
 
@@ -1032,7 +1033,8 @@ def tafsir_pemeriksaan(hasil):
             Class="galat",
         )
 
-    label, _tempat, tertangkap, _penjelasan = CACAT[K.cacat]
+    _tempat, tertangkap = CACAT[K.cacat]
+    label = tr("cacat_nama_" + K.cacat)
     if tertangkap and not hasil["lolos"]:
         return html.P(
             tr("tafsir_tertangkap") % label,
@@ -1272,6 +1274,8 @@ def gambar_langkah(_ev=None):
     jejak = K.jaringan.telusuri(x, sasaran)
 
     pemilih = html.DIV(Class="baris")
+    pemilih.setAttribute("data-ekspor", "pilihan")
+    pemilih.setAttribute("role", "group")
     for i in range(min(len(data), BATAS_PILIHAN_TITIK)):
         xi, ti = data[i]
         b = html.BUTTON(
@@ -1730,6 +1734,13 @@ def tombol_pilihan(label, pilihan, terpilih, saat_pilih):
     bungkus = html.DIV(Class="bidang")
     bungkus <= html.SPAN(label, Class="bidang__label")
     baris = html.DIV(Class="baris")
+    # Ditandai sebagai kelompok pilihan, bukan sederet aksi. Bedanya terlihat
+    # saat halaman ini dicetak: tombol aksi tidak berarti apa-apa di atas
+    # kertas karena tidak ada yang bisa menekannya, sedangkan pilihan yang
+    # sedang aktif adalah bagian dari setelan yang menghasilkan angkanya —
+    # dan lembar tanpa itu tidak bisa diulang siapa pun.
+    baris.setAttribute("data-ekspor", "pilihan")
+    baris.setAttribute("role", "group")
     for nilai, teks in pilihan:
         b = html.BUTTON(teks, Class="tombol", type="button")
         b.setAttribute("aria-pressed", "true" if nilai == terpilih else "false")
@@ -1790,7 +1801,7 @@ def gambar_kontrol():
         tr("kartu_masalah"),
         tombol_pilihan(
             tr("kumpulan_data"),
-            [(k, v[0]) for k, v in DATASET.items()]
+            [(k, tr("data_nama_" + k)) for k in DATASET]
             + ([("sendiri", tr("data_sendiri"))] if K.data_sendiri else []),
             K.dataset,
             set_dataset,
@@ -1838,13 +1849,13 @@ def gambar_kontrol():
         ),
         tombol_pilihan(
             tr("cacat_perambatan"),
-            [(k, v[0]) for k, v in CACAT.items()],
+            [(k, tr("cacat_nama_" + k)) for k in CACAT],
             K.cacat,
             set_cacat,
         ),
     )
-    label, tempat, tertangkap, penjelasan = CACAT[K.cacat]
-    kartu_cacat <= html.P(penjelasan, Class="catatan")
+    _tempat, tertangkap = CACAT[K.cacat]
+    kartu_cacat <= html.P(tr("cacat_jelas_" + K.cacat), Class="catatan")
     if K.cacat != "tidak_ada":
         kartu_cacat <= html.P(
             tr("pemeriksa_menangkap")

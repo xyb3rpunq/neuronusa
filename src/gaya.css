@@ -693,12 +693,64 @@ tbody tr:last-child td {
   .kepala,
   .kaki,
   .lewati,
-  .kolom-kontrol,
   #memuat,
   #jalankan-konformansi,
-  #periksa,
+  #periksa {
+    display: none !important;
+  }
+
+  /* Kolom kendali ikut tercetak. Ia memuat kumpulan data, jumlah neuron,
+     aktivasi, benih, laju, dan cacat yang sedang menyala — yaitu seluruh
+     setelan yang menghasilkan angka di sebelahnya. Lembar yang membuangnya
+     memuat hasil yang tidak bisa diulang siapa pun. */
+  .kolom-kontrol {
+    position: static;
+  }
+
+  /* Sederet aksi tidak berarti apa-apa di atas kertas: tidak ada yang bisa
+     menekannya. Sekelompok pilihan justru sebaliknya. */
   .baris {
     display: none !important;
+  }
+
+  .baris[data-ekspor="pilihan"] {
+    display: flex !important;
+  }
+
+  .baris[data-ekspor="pilihan"] .tombol {
+    background: #fff;
+    border: 1px solid #ccc;
+    color: #777;
+    padding: 0.1rem 0.4rem;
+    font-size: 9pt;
+  }
+
+  /* Ditandai dengan centang, bukan hanya dengan warna: lembar ini akan
+     dicetak hitam-putih, dan warna adalah yang pertama hilang. */
+  .baris[data-ekspor="pilihan"] .tombol[aria-pressed="true"] {
+    border-color: #000;
+    color: #000;
+    font-weight: 700;
+  }
+
+  .baris[data-ekspor="pilihan"] .tombol[aria-pressed="true"]::before {
+    content: "¹3 a0";
+  }
+
+  /* Tabel panjang yang terpotong halaman kehilangan kepala kolomnya, dan
+     angka tanpa nama kolom tidak berarti apa-apa. */
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Di layar isinya bisa digulir; di atas kertas tidak ada yang menggulir. */
+  .gulir-x {
+    overflow: visible !important;
   }
 
   body {
@@ -714,6 +766,12 @@ tbody tr:last-child td {
   }
 
   #aplikasi {
+    display: block;
+  }
+
+  .kolom-kontrol,
+  .kolom-keluaran,
+  .tumpuk {
     display: block;
   }
 

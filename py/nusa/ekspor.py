@@ -18,8 +18,23 @@ Yang tidak boleh dilewatkan agar CSV itu benar-benar terbuka rapi di Excel:
    diabaikan pembaca CSV lain yang melewati baris pertama sebagai judul.
 3. **Akhir baris CRLF**, seperti yang dituntut RFC 4180.
 
+# Kenapa isinya ikut berganti bahasa
+
+Karena berkas yang diunduh adalah bagian dari situs ini, bukan lampiran yang
+kebetulan menempel. Sebelumnya seluruh laporan ditulis dalam bahasa Indonesia
+saja, sehingga pengunjung yang membaca situs ini dalam bahasa Inggris
+mengunduh berkas yang tidak bisa ia baca — dan tidak akan pernah
+melaporkannya, karena ia hanya akan menyimpulkan berkasnya memang begitu.
+
+Kunci-kuncinya berawalan ``eks_`` di :mod:`nusa.bahasa`, dan diuji dengan
+aturan yang sama seperti untai antarmuka: kedua bahasa wajib ada, wajib
+berbeda, dan wajib dipakai.
+
 .Deckyx
 """
+
+from . import bahasa
+from .jaringan import DATASET
 
 _CR = chr(13)
 _LF = chr(10)
@@ -62,40 +77,53 @@ def laporan_baris(K, hasil_gradien=None):
     tabel yang memuat setelan, ramalan, bobot, dan gradien sekaligus akan
     punya kolom yang berarti berbeda di tiap baris — bentuk yang menyulitkan
     dibaca manusia maupun mesin.
+
+    Seluruh labelnya mengikuti bahasa yang sedang aktif. Bahasanya sendiri
+    dicatat di kepala berkas, supaya laporan yang beredar lepas dari
+    halamannya tetap bisa ditelusuri asalnya.
     """
+    t = bahasa.t
     jar = K.jaringan
     data = K.data()
     baris = []
 
-    baris.append(["neuronusa — laporan pelatihan"])
-    baris.append(["dihasilkan", "halaman neuronusa (.Deckyx)"])
+    baris.append([t("eks_judul")])
+    baris.append([t("eks_dihasilkan"), t("eks_sumber")])
+    baris.append([t("eks_bahasa_berkas"), bahasa.sekarang()])
     baris.append([])
 
-    baris.append(["SETELAN"])
-    baris.append(["kumpulan data", K.dataset])
-    baris.append(["neuron tersembunyi", K.tersembunyi])
-    baris.append(["aktivasi", K.aktivasi])
-    baris.append(["benih bobot awal", K.benih])
-    baris.append(["laju belajar", K.laju])
-    baris.append(["momentum", K.momentum])
-    baris.append(["laju efektif", jar.laju_efektif(K.laju, K.momentum)])
-    baris.append(["cacat perambatan balik", K.cacat])
-    baris.append(["epoch dijalankan", K.epoch])
-    baris.append(["jumlah parameter", jar.jumlah_parameter()])
+    baris.append([t("eks_setelan")])
+    baris.append([t("eks_kumpulan_data"), t("data_nama_" + K.dataset)
+                  if K.dataset in DATASET else t("data_sendiri")])
+    baris.append([t("eks_tersembunyi"), K.tersembunyi])
+    # Nama aktivasi tidak diterjemahkan: "tanh" dan "relu" adalah nama fungsi,
+    # bukan kata, dan menerjemahkannya akan membuat laporannya justru lebih
+    # sulit dicocokkan dengan pustaka mana pun.
+    baris.append([t("eks_aktivasi"), K.aktivasi])
+    baris.append([t("eks_benih"), K.benih])
+    baris.append([t("eks_laju"), K.laju])
+    baris.append([t("eks_momentum_baris"), K.momentum])
+    baris.append([t("eks_laju_efektif"), jar.laju_efektif(K.laju, K.momentum)])
+    baris.append([t("eks_cacat"), t("cacat_nama_" + K.cacat)])
+    baris.append([t("eks_epoch"), K.epoch])
+    baris.append([t("eks_parameter"), jar.jumlah_parameter()])
     baris.append([])
 
     galat = jar.galat(data)
-    benar = sum(1 for x, t in data if round(jar.ramal(x)[0]) == int(t[0]))
-    baris.append(["HASIL"])
-    baris.append(["galat kuadrat rata-rata", galat])
-    baris.append(["titik benar", benar])
-    baris.append(["titik seluruhnya", len(data)])
+    benar = sum(1 for x, sasaran in data if round(jar.ramal(x)[0]) == int(sasaran[0]))
+    baris.append([t("eks_hasil")])
+    baris.append([t("eks_galat_rata"), galat])
+    baris.append([t("eks_titik_benar"), benar])
+    baris.append([t("eks_titik_semua"), len(data)])
     if K.bayangan is not None:
-        baris.append(["galat pembanding tanpa cacat", K.bayangan.galat(data)])
+        baris.append([t("eks_galat_pembanding"), K.bayangan.galat(data)])
     baris.append([])
 
-    baris.append(["RAMALAN TIAP TITIK"])
-    baris.append(["x1", "x2", "sasaran", "keluaran", "selisih", "benar"])
+    baris.append([t("eks_ramalan")])
+    baris.append(
+        ["x1", "x2", t("eks_kol_sasaran"), t("eks_kol_keluaran"),
+         t("eks_kol_selisih"), t("eks_kol_benar")]
+    )
     for x, sasaran in data:
         y = jar.ramal(x)[0]
         baris.append(
@@ -103,50 +131,52 @@ def laporan_baris(K, hasil_gradien=None):
         )
     baris.append([])
 
-    baris.append(["BOBOT DAN BIAS"])
-    baris.append(["parameter", "lapis", "ke", "dari", "nilai"])
+    baris.append([t("eks_bobot")])
+    baris.append(
+        [t("eks_kol_parameter"), t("eks_kol_lapis"), t("eks_kol_ke"),
+         t("eks_kol_dari"), t("eks_kol_nilai")]
+    )
     for lap in range(len(jar.bobot)):
         for j, baris_bobot in enumerate(jar.bobot[lap]):
             for k, w in enumerate(baris_bobot):
-                baris.append(["bobot", lap, j + 1, k + 1, w])
+                baris.append([t("eks_bobot_nama"), lap, j + 1, k + 1, w])
         for j, b in enumerate(jar.bias[lap]):
-            baris.append(["bias", lap, j + 1, "", b])
+            baris.append([t("eks_bias_nama"), lap, j + 1, "", b])
     baris.append([])
 
-    baris.append(["KURVA GALAT"])
-    baris.append(["titik riwayat", "galat"])
+    baris.append([t("eks_kurva")])
+    baris.append([t("eks_kol_riwayat"), t("eks_kol_galat")])
     for i, v in enumerate(K.riwayat):
         baris.append([i, v])
     baris.append([])
 
     if hasil_gradien:
-        baris.append(["PEMERIKSAAN GRADIEN"])
-        baris.append(["hasil", "LOLOS" if hasil_gradien["lolos"] else "GAGAL"])
-        baris.append(["galat relatif terburuk", hasil_gradien["terburuk"]])
-        baris.append(["ambang", 1e-5])
+        baris.append([t("eks_gradien")])
+        baris.append(
+            [t("eks_hasil_periksa"),
+             t("eks_lolos") if hasil_gradien["lolos"] else t("eks_gagal")]
+        )
+        baris.append([t("eks_terburuk"), hasil_gradien["terburuk"]])
+        baris.append([t("eks_ambang"), 1e-5])
         baris.append([])
         baris.append(
-            ["parameter", "lapis", "ke", "dari", "nilai", "perambatan balik",
-             "selisih hingga", "galat relatif"]
+            [t("eks_kol_parameter"), t("eks_kol_lapis"), t("eks_kol_ke"),
+             t("eks_kol_dari"), t("eks_kol_nilai"), t("eks_kol_analitik"),
+             t("eks_kol_numerik"), t("eks_kol_relatif")]
         )
         for r in sorted(hasil_gradien["rincian"], key=lambda x: -x["relatif"]):
+            jenis = t("eks_bobot_nama") if r["jenis"] == "bobot" else t("eks_bias_nama")
             baris.append(
-                [r["jenis"], r["lapis"], r["ke"] + 1,
+                [jenis, r["lapis"], r["ke"] + 1,
                  "" if r["dari"] is None else r["dari"] + 1,
                  r["nilai"], r["analitik"], r["numerik"], r["relatif"]]
             )
         baris.append([])
 
-    baris.append(["CATATAN"])
-    baris.append(
-        ["Angka memakai titik sebagai pemisah desimal. Excel berwilayah "
-         "Indonesia mungkin membacanya sebagai teks; ubah kolomnya menjadi "
-         "angka lewat Data > Text to Columns bila perlu."]
-    )
-    baris.append(
-        ["Nilai x1 dan x2 sudah dalam skala 0 sampai 1. Untuk data tempelan, "
-         "rentang aslinya tercantum di halaman."]
-    )
+    baris.append([t("eks_catatan")])
+    baris.append([t("eks_catatan_mesin")])
+    baris.append([t("eks_catatan_desimal")])
+    baris.append([t("eks_catatan_skala")])
     return baris
 
 

@@ -103,6 +103,13 @@ AKTIVASI = {
 
 #: Cacat perambatan balik yang bisa dipasang dengan sengaja.
 #:
+#: Isinya hanya dua hal yang mekanis: di mana cacatnya bekerja
+#: (``"gradien"`` atau ``"langkah"``), dan apakah pemeriksa gradien
+#: menangkapnya. Nama dan penjelasannya ada di ``bahasa.py`` dengan kunci
+#: ``cacat_nama_*`` dan ``cacat_jelas_*`` — keduanya dilihat pengguna,
+#: sehingga keduanya terjemahan, dan modul mesin tidak punya urusan
+#: memegang terjemahan.
+#:
 #: # Kenapa ini ada di kode produksi dan bukan di berkas uji
 #:
 #: Karena seluruh alasan proyek ini adalah satu kalimat: *jaringan yang
@@ -118,57 +125,15 @@ AKTIVASI = {
 #: akan langsung merusak pelatihan dan karena itu tidak mengajarkan apa pun —
 #: yang berbahaya justru cacat yang membiarkan segalanya tampak baik-baik saja.
 #:
-#: Tiap nilai: (label, tempat cacatnya bekerja, apakah pemeriksa gradien
-#: menangkapnya, penjelasan).
+#: Tiap nilai: (tempat cacatnya bekerja, apakah pemeriksa gradien
+#: menangkapnya).
 CACAT = {
-    "tidak_ada": (
-        "Tidak ada",
-        None,
-        None,
-        "Perambatan balik yang benar — dasar pembanding untuk keempat "
-        "cacat di bawah. Perhatikan galat akhirnya, lalu bandingkan dengan "
-        "galat akhir tiap cacat.",
-    ),
-    "tanda_terbalik": (
-        "Satu tanda terbalik",
-        "gradien",
-        True,
-        "Satu bobot gradiennya dibalik tandanya — salah ketik indeks, atau "
-        "kurang tanda minus di satu tempat. Bobot itu didorong ke arah yang "
-        "justru memperburuk, sementara enam belas lainnya benar. Pelatihan "
-        "tetap berjalan; ia hanya berhenti di tempat yang keliru.",
-    ),
-    "turunan_hilang": (
-        "Turunan aktivasi tidak dikalikan",
-        "gradien",
-        True,
-        "Delta lapis tersembunyi diteruskan tanpa dikalikan turunan "
-        "aktivasinya. Ini cacat perambatan balik yang paling sering ditulis "
-        "orang: aturan rantai kehilangan satu mata rantai. Gradiennya jadi "
-        "salah arah maupun salah besaran, tetapi tetap menunjuk ke arah yang "
-        "kira-kira benar cukup sering untuk membuat galatnya menurun.",
-    ),
-    "faktor_dua": (
-        "Faktor dua tertinggal",
-        "gradien",
-        True,
-        "Galat kuadrat di sini dibagi dua supaya turunannya menjadi (y − t) "
-        "tanpa faktor dua yang menempel di mana-mana. Cacat ini melupakan "
-        "pembagian itu, sehingga seluruh gradien menjadi dua kali lipat. "
-        "Pelatihan tetap benar arahnya dan hanya melangkah dua kali lebih "
-        "jauh — nyaris mustahil dilihat dari kurva galat, dan langsung "
-        "terlihat oleh pemeriksa gradien sebagai galat relatif 1,0.",
-    ),
-    "bias_beku": (
-        "Bias tidak pernah diperbarui",
-        "langkah",
-        False,
-        "Gradiennya dihitung benar, tetapi biasnya tidak pernah digeser. "
-        "Perhatikan baik-baik: pemeriksa gradien **tidak** menangkap yang ini, "
-        "dan memang tidak bisa. Ia memeriksa apakah turunannya benar, bukan "
-        "apakah turunannya dipakai. Setiap alat punya batas, dan alat yang "
-        "batasnya tidak diketahui lebih berbahaya daripada tidak punya alat.",
-    ),
+    #                  tempat,     tertangkap pemeriksa gradien
+    "tidak_ada": (None, None),
+    "tanda_terbalik": ("gradien", True),
+    "turunan_hilang": ("gradien", True),
+    "faktor_dua": ("gradien", True),
+    "bias_beku": ("langkah", False),
 }
 
 
@@ -748,7 +713,7 @@ def data_lingkaran(jumlah=40, benih=7):
 
 
 DATASET = {
-    "xor": ("XOR", data_xor),
-    "and": ("AND", data_and),
-    "lingkaran": ("Cincin", data_lingkaran),
+    "xor": data_xor,
+    "and": data_and,
+    "lingkaran": data_lingkaran,
 }

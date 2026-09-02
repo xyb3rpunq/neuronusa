@@ -537,9 +537,7 @@ class UjiCacatYangBisaDinyalakan(unittest.TestCase):
 
     def test_katalog_lengkap_dan_konsisten(self):
         self.assertIn("tidak_ada", jaringan.CACAT)
-        for nama, (label, tempat, tertangkap, penjelasan) in jaringan.CACAT.items():
-            self.assertTrue(label and isinstance(label, str), nama)
-            self.assertTrue(penjelasan and len(penjelasan) > 40, nama)
+        for nama, (tempat, tertangkap) in jaringan.CACAT.items():
             if nama == "tidak_ada":
                 self.assertIsNone(tempat)
                 self.assertIsNone(tertangkap)
@@ -551,6 +549,45 @@ class UjiCacatYangBisaDinyalakan(unittest.TestCase):
                 # membuktikan keduanya dengan menjalankannya.
                 self.assertEqual(tertangkap, tempat == "gradien", nama)
 
+    def test_tiap_cacat_punya_nama_dan_penjelasan_di_kedua_bahasa(self):
+        """Slug mesin tidak boleh sampai ke layar tanpa terjemahan.
+
+        Nama dan penjelasan cacat dulu tinggal di dalam tabel ``CACAT`` sebagai
+        untai Indonesia, dan dirender langsung ke halaman. Akibatnya seluruh
+        kartu sabotase — prosa terpanjang di situs ini — tetap berbahasa
+        Indonesia meski situsnya disetel ke Inggris, dan tidak ada satu pun uji
+        yang bisa melihatnya: kamusnya sendiri lengkap, hanya saja teks itu
+        tidak pernah lewat kamus.
+        """
+        for nama in jaringan.CACAT:
+            for awalan, panjang_minimum in (("cacat_nama_", 3), ("cacat_jelas_", 40)):
+                kunci = awalan + nama
+                self.assertIn(kunci, bahasa.TEKS, kunci)
+                for teks in bahasa.TEKS[kunci]:
+                    self.assertGreaterEqual(len(teks), panjang_minimum, kunci)
+
+    def test_tiap_kumpulan_data_punya_nama_di_kedua_bahasa(self):
+        for nama in jaringan.DATASET:
+            kunci = "data_nama_" + nama
+            self.assertIn(kunci, bahasa.TEKS, kunci)
+            for teks in bahasa.TEKS[kunci]:
+                self.assertTrue(teks.strip(), kunci)
+
+    def test_tabel_mesin_tidak_lagi_memuat_teks_tampilan(self):
+        """Tabel mesin yang memuat untai panjang hampir pasti teks tampilan.
+
+        Uji ini menjaga pemisahannya tetap berlaku: begitu ada yang menaruh
+        kembali sebuah nama atau penjelasan ke dalam ``CACAT`` atau
+        ``DATASET``, terjemahannya akan kembali terlewat tanpa ada yang tahu.
+        """
+        for nama, isi in jaringan.CACAT.items():
+            self.assertEqual(len(isi), 2, nama)
+            for bagian in isi:
+                if isinstance(bagian, str):
+                    self.assertLessEqual(len(bagian), 12, nama)
+        for nama, isi in jaringan.DATASET.items():
+            self.assertTrue(callable(isi), nama)
+
     def test_nama_cacat_yang_tidak_dikenal_ditolak(self):
         j = jaringan.Jaringan([2, 3, 1])
         with self.assertRaises(ValueError):
@@ -560,7 +597,7 @@ class UjiCacatYangBisaDinyalakan(unittest.TestCase):
 
     def test_pemeriksa_gradien_menangkap_yang_seharusnya_tertangkap(self):
         data = jaringan.data_xor()
-        for nama, (_label, tempat, tertangkap, _p) in jaringan.CACAT.items():
+        for nama, (tempat, tertangkap) in jaringan.CACAT.items():
             if nama == "tidak_ada":
                 continue
             j = jaringan.Jaringan([2, 4, 1], aktivasi="tanh", benih=7)
@@ -1024,13 +1061,72 @@ class UjiEkspor(unittest.TestCase):
         self.assertEqual(teks.count('"') % 2, 0)
         self.assertIn('"dua', teks)
 
+    @staticmethod
+    def _tajuk(baris):
+        return {b[0] for b in baris if len(b) == 1 and isinstance(b[0], str)}
+
     def test_laporan_memuat_seluruh_bagian(self):
         K = self._keadaan_palsu()
-        baris = ekspor.laporan_baris(K)
-        tajuk = {b[0] for b in baris if len(b) == 1 and isinstance(b[0], str)}
-        for wajib in ("SETELAN", "HASIL", "RAMALAN TIAP TITIK", "BOBOT DAN BIAS",
-                      "KURVA GALAT", "CATATAN"):
-            self.assertIn(wajib, tajuk, wajib)
+        tajuk = self._tajuk(ekspor.laporan_baris(K))
+        for kunci in ("eks_setelan", "eks_hasil", "eks_ramalan", "eks_bobot",
+                      "eks_kurva", "eks_catatan"):
+            self.assertIn(bahasa.t(kunci), tajuk, kunci)
+
+    def test_laporan_mengikuti_bahasa_yang_sedang_aktif(self):
+        """Berkas yang diunduh adalah bagian dari situs ini, bukan lampiran.
+
+        Sebelumnya seluruh laporan ditulis dalam bahasa Indonesia saja, dan
+        kegagalannya senyap: pengunjung yang membaca situs ini dalam bahasa
+        Inggris mengunduh berkas yang tidak bisa ia baca, lalu menyimpulkan
+        berkasnya memang begitu — bukan melaporkannya.
+        """
+        K = self._keadaan_palsu()
+        semula = bahasa.sekarang()
+        try:
+            bahasa.atur("id")
+            indo = self._tajuk(ekspor.laporan_baris(K))
+            bahasa.atur("en")
+            eng = self._tajuk(ekspor.laporan_baris(K))
+        finally:
+            bahasa.atur(semula)
+
+        self.assertIn("SETELAN", indo)
+        self.assertIn("SETTINGS", eng)
+        # Bukan sekadar sebagian: tidak boleh ada satu pun tajuk Indonesia
+        # yang tersisa di laporan berbahasa Inggris.
+        self.assertEqual(indo & eng, set())
+
+    def test_nama_cacat_dan_kumpulan_data_di_laporan_ikut_diterjemahkan(self):
+        """Slug mesin tidak boleh bocor ke laporan.
+
+        ``lingkaran`` dan ``tanda_terbalik`` adalah kunci di dalam kode, bukan
+        kata yang berarti apa pun bagi pembacanya.
+        """
+        K = self._keadaan_palsu()
+        K.dataset = "lingkaran"
+        K.cacat = "tanda_terbalik"
+        semula = bahasa.sekarang()
+        try:
+            bahasa.atur("en")
+            teks = ekspor.csv(ekspor.laporan_baris(K))
+        finally:
+            bahasa.atur(semula)
+        self.assertIn("Ring", teks)
+        self.assertIn("One flipped sign", teks)
+        self.assertNotIn("lingkaran", teks)
+        self.assertNotIn("tanda_terbalik", teks)
+
+    def test_data_tempelan_disebut_apa_adanya_bukan_dicari_di_katalog(self):
+        """Kumpulan data bernama "sendiri" tidak ada di ``DATASET``.
+
+        Mencarinya di sana melempar ``KeyError`` di tengah penyusunan laporan
+        — tepat pada pengguna yang paling ingin mengunduhnya, yaitu yang
+        membawa datanya sendiri.
+        """
+        K = self._keadaan_palsu()
+        K.dataset = "sendiri"
+        teks = ekspor.csv(ekspor.laporan_baris(K))
+        self.assertIn(bahasa.t("data_sendiri"), teks)
 
     def test_laporan_memuat_pemeriksaan_gradien_bila_ada(self):
         K = self._keadaan_palsu()
@@ -1077,7 +1173,22 @@ class UjiBahasa(unittest.TestCase):
     #: kedua bahasa. Memaksanya berbeda akan menghasilkan terjemahan yang
     #: mengada-ada, dan terjemahan yang mengada-ada lebih buruk daripada tidak
     #: menerjemahkan.
-    BOLEH_SAMA = {"momentum", "kolom_parameter", "kolom_neuron", "kolom_delta"}
+    BOLEH_SAMA = {
+        "momentum",
+        "kolom_parameter",
+        "kolom_neuron",
+        "kolom_delta",
+        # "XOR" dan "AND" adalah nama gerbang logika, bukan kata yang bisa
+        # diterjemahkan. "Cincin" tidak ikut di sini: ia kata biasa, dan
+        # memang menjadi "Ring".
+        "data_nama_xor",
+        "data_nama_and",
+        # Sama alasannya: "momentum", "parameter", dan "bias" adalah kata yang
+        # dipakai apa adanya di kedua bahasa.
+        "eks_momentum_baris",
+        "eks_kol_parameter",
+        "eks_bias_nama",
+    }
 
     def test_setiap_kunci_punya_dua_bahasa(self):
         for kunci, nilai in bahasa.TEKS.items():
@@ -1183,20 +1294,44 @@ class UjiBahasa(unittest.TestCase):
         import os
         import re
 
-        jalur = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "app.py"
-        )
-        with open(jalur, "r", encoding="utf-8") as f:
-            kode = f.read()
+        akar = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+        kode = ""
+        # ``app.py`` memanggilnya ``tr``; ``ekspor.py`` memanggilnya ``t``.
+        # Keduanya ikut dipindai: kunci laporan yang diunduh dirawat dengan
+        # aturan yang sama seperti untai antarmuka, dan sebuah kunci yang
+        # hanya dipakai salah satunya tidak boleh dianggap menganggur.
+        for bagian in (("src", "app.py"), ("py", "nusa", "ekspor.py")):
+            with open(os.path.join(akar, *bagian), "r", encoding="utf-8") as f:
+                kode += f.read()
 
-        dipakai = set(re.findall(r'\btr\("([^"]+)"\)', kode))
+        dipakai = set(re.findall(r'\bt r?\("([^"]+)"\)'.replace(" ", ""), kode))
+
+        # Kunci yang disusun dari awalan tetap ditambah sebuah slug —
+        # ``tr("cacat_nama_" + K.cacat)`` — tidak terlihat oleh pemindaian di
+        # atas. Yang bisa dilihat hanya awalannya, jadi tiap awalan diperluas
+        # memakai daftar slug yang sah dari modul mesinnya sendiri.
+        #
+        # Diperluas dari ``jaringan.CACAT`` dan ``jaringan.DATASET``, bukan
+        # dari daftar yang ditulis ulang di sini: sebuah cacat baru yang
+        # ditambahkan tanpa terjemahannya harus membuat uji ini gagal, dan
+        # daftar salinan justru akan membuatnya lolos.
+        for awalan, slug in (
+            ("cacat_nama_", jaringan.CACAT),
+            ("cacat_jelas_", jaringan.CACAT),
+            ("data_nama_", jaringan.DATASET),
+        ):
+            self.assertIn(
+                'tr("%s" + ' % awalan, kode, "awalan %r tidak dipakai" % awalan
+            )
+            dipakai |= {awalan + k for k in slug}
+
         tersedia = set(bahasa.TEKS)
 
         hilang = sorted(dipakai - tersedia)
-        self.assertEqual(hilang, [], "dipakai app.py tetapi tidak ada di kamus")
+        self.assertEqual(hilang, [], "dipakai tetapi tidak ada di kamus")
 
         menganggur = sorted(tersedia - dipakai)
-        self.assertEqual(menganggur, [], "ada di kamus tetapi tidak dipakai app.py")
+        self.assertEqual(menganggur, [], "ada di kamus tetapi tidak dipakai di mana pun")
 
 
 class UjiTautan(unittest.TestCase):

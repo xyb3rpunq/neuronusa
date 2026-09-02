@@ -10,7 +10,7 @@
 [![Live](https://img.shields.io/badge/live-xyb3rpunq.github.io%2Fneuronusa-0d9488)](https://xyb3rpunq.github.io/neuronusa/)
 [![Lisensi](https://img.shields.io/badge/lisensi-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-di%20peramban-3776ab?logo=python&logoColor=white)](https://brython.info/)
-[![Uji](https://img.shields.io/badge/uji-108-brightgreen)](py/uji/test_nusa.py)
+[![Uji](https://img.shields.io/badge/uji-114-brightgreen)](py/uji/test_nusa.py)
 [![Bahasa](https://img.shields.io/badge/bahasa-ID%20%2B%20EN-blue)](py/nusa/bahasa.py)
 [![Konformansi](https://img.shields.io/badge/konformansi-3.796%20pernyataan-brightgreen)](conformance/)
 
@@ -81,12 +81,39 @@ w L0 n3←2     -0.72119     0.00002257          0.00002257         2.77e-09
 | **Langkah demi langkah** | Satu contoh melewati jaringan, maju lalu balik: keluaran, delta, dan gradien tiap neuron. |
 | **Pemeriksaan gradien** | Seluruh turunan dihitung ulang dengan selisih tengah, diurutkan dari galat terbesar. |
 | **Konformansi** | Tombol yang menjalankan ulang 3.796 pernyataan lintas bahasa di peramban kamu, sekarang. |
-| **Ekspor** | Unduh seluruh hasilnya sebagai CSV yang rapi di Excel, atau cetak jadi PDF. |
+| **Ekspor** | Unduh seluruh hasilnya sebagai CSV yang rapi di Excel, atau cetak jadi PDF. Isinya ikut bahasa yang sedang aktif, dan lembar cetaknya tetap memuat setelan yang menghasilkan angkanya. |
 | **Bagikan** | Alamatnya selalu mencerminkan setelan; membukanya di tempat lain menghasilkan jaringan yang sama persis. |
-| **Dwibahasa** | Seluruh isinya ada dalam Bahasa Indonesia dan Inggris, berganti seketika. Prosa tetap dipilih CSS, bukan Python — belasan kilobyte teks tidak layak disusun ulang penerjemah. |
+| **Dwibahasa** | Seluruh isinya ada dalam Bahasa Indonesia dan Inggris, berganti seketika — termasuk nama tiap cacat, penjelasannya, dan berkas yang diunduh. Prosa tetap dipilih CSS, bukan Python — belasan kilobyte teks tidak layak disusun ulang penerjemah. |
 
 Setiap gambar punya keterangan yang menjelaskan **apa yang harus dilihat**,
 bukan sekadar menamai sumbunya.
+
+### Bawa data sendiri, bawa pulang hasilnya
+
+Tempel data kamu sendiri — tiga kolom, pemisah apa pun, koma desimal Indonesia
+diterima — lalu latih jaringannya di atas data itu. Seluruh perhitungan
+dijalankan Python di dalam peramban kamu lewat Brython; tidak ada satu bita pun
+yang dikirim ke mana pun.
+
+Di ujung halaman ada dua tombol:
+
+| Tombol | Menghasilkan | Untuk |
+|---|---|---|
+| **Unduh CSV (Excel)** | Setelan, hasil, ramalan tiap titik, seluruh bobot dan bias, kurva galat, dan hasil pemeriksaan gradien | Diolah lagi di Excel, Sheets, pandas, atau R |
+| **Cetak / simpan PDF** | Halaman yang sama tanpa kemudi, satu kolom, kartu tidak terpotong halaman | Dilampirkan ke laporan tugas |
+
+Nama berkasnya menyebutkan setelannya — `neuronusa-xor-h4-tanh-s7-e120.csv` —
+karena unduhan bernama `laporan (3).csv` tidak bisa dibedakan dari tetangganya
+seminggu kemudian.
+
+**Laporannya ikut berganti bahasa.** Bahasanya sendiri dicatat di kepala
+berkas, supaya laporan yang beredar lepas dari halamannya tetap bisa ditelusuri
+asalnya.
+
+**Lembar cetaknya tetap memuat setelan.** Kolom kendali ikut tercetak, dan
+pilihan yang sedang aktif ditandai centang — bukan hanya warna, karena lembar
+ini akan dicetak hitam-putih dan warna adalah yang pertama hilang. Hasil tanpa
+setelan yang menghasilkannya tidak bisa diulang siapa pun.
 
 ### Sabotase: membantah klaim situs ini sendiri
 
@@ -205,7 +232,7 @@ npm run dev
 |---|---|
 | `npm run dev` | Kemas mesin Python, jalankan server di `:5176`. |
 | `npm run build` | Kemas, lalu bangun ke `dist/`. |
-| `npm test` | 108 uji mesin Python (CPython). |
+| `npm test` | 114 uji mesin Python (CPython). |
 | `npm run conform` | Adu Python lawan 3.796 vektor Rust. |
 | `npm run typecheck` | Periksa tipe TypeScript. |
 | `npm run budget` | Anggaran ukuran berkas terbitan. |
@@ -229,7 +256,7 @@ py/nusa/            mesin — CPython saat uji, Brython di peramban
   data.py           pengurai data tempelan pengguna
   ekspor.py         penyusun laporan CSV
   bahasa.py         kamus dwibahasa Indonesia dan Inggris
-py/uji/             108 uji
+py/uji/             114 uji
 conformance/        9 berkas vektor yang dihasilkan Rust
 src/
   app.py            seluruh antarmuka, ditulis dalam Python
@@ -282,7 +309,7 @@ aktivasi dan empat bentuk jaringan.
 
 ### Yang diuji, dan kenapa
 
-108 uji, ditulis untuk gagal ketika sesuatu memang salah:
+114 uji, ditulis untuk gagal ketika sesuatu memang salah:
 
 - **`test_pemeriksa_gradien_menangkap_gradien_yang_dirusak`** — merusak satu
   gradien dengan sengaja, lalu menuntut pemeriksanya gagal.
@@ -302,6 +329,16 @@ aktivasi dan empat bentuk jaringan.
   gagal setiap perbandingan, termasuk yang dipakai menolaknya.
 - **`test_laporan_kosong_tidak_dianggap_lolos`** — laporan tanpa satu pun
   pernyataan bukan keberhasilan melainkan tanda vektornya tidak terbaca.
+- **`test_tiap_cacat_punya_nama_dan_penjelasan_di_kedua_bahasa`** — nama dan
+  penjelasan cacat dulu tinggal di dalam tabel mesin sebagai untai Indonesia
+  dan dirender langsung ke halaman, sehingga seluruh kartu sabotase — prosa
+  terpanjang di situs ini — tetap berbahasa Indonesia meski situsnya disetel
+  ke Inggris. Kamusnya sendiri lengkap; teks itu hanya tidak pernah lewat
+  kamus, dan karena itu tidak ada satu pun uji yang bisa melihatnya.
+- **`test_laporan_mengikuti_bahasa_yang_sedang_aktif`** — menuntut tidak ada
+  satu pun tajuk Indonesia tersisa di laporan berbahasa Inggris. Berkas yang
+  diunduh adalah bagian dari situs ini, bukan lampiran yang kebetulan
+  menempel.
 
 ### Keamanan
 
@@ -352,6 +389,29 @@ a chart just as convincing as the correct one.
 What sets this project apart: every derivative is recomputed with **finite
 differences** and displayed side by side with the backpropagated value and its
 relative error.
+
+### Your own data, and results you can take with you
+
+Paste your own data — three columns, any separator, Indonesian decimal commas
+accepted — and train the network on it. Every calculation runs as Python inside
+your own browser via Brython; not one byte is sent anywhere.
+
+Two buttons sit at the end of the page. **Download CSV (Excel)** writes the
+settings, the results, the prediction for every point, all weights and biases,
+the error curve, and the gradient-check outcome. **Print / save as PDF** gives
+you the same page without the chrome: one column, with cards that do not break
+across pages.
+
+The filename names the settings — `neuronusa-xor-h4-tanh-s7-e120.csv` —
+because a download called `laporan (3).csv` is indistinguishable from its
+neighbours a week later.
+
+The report follows the active language, and records which language that was in
+its header, so a report circulating away from the page can still be traced back
+to it. The printed sheet keeps the control column: the active selections are
+marked with a tick rather than only colour, since the sheet will be printed in
+black and white and colour is the first thing to go. A result without the
+settings that produced it cannot be reproduced by anyone.
 
 ### Sabotage: letting visitors refute the site's own claim
 
@@ -450,7 +510,7 @@ npm run audit:all  # tests, conformance, typecheck, build, budget, bundle check
 |---|---|
 | `npm run dev` | Bundle the Python engine, serve on `:5176`. |
 | `npm run build` | Bundle, then build to `dist/`. |
-| `npm test` | 108 engine tests (CPython). |
+| `npm test` | 114 engine tests (CPython). |
 | `npm run conform` | Check Python against 3,796 Rust vectors. |
 | `npm run typecheck` | TypeScript type check. |
 | `npm run budget` | Published-size budget. |
