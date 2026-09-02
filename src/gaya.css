@@ -689,6 +689,47 @@ tbody tr:last-child td {
  * ditekan di atas kertas, dan yang tidak bisa ditekan hanya memakan tempat
  * yang seharusnya jadi milik hasilnya.
  */
+/* --- situs saudara ------------------------------------------------------ */
+
+.saudara__daftar {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin: 0.8rem 0;
+}
+
+.saudara__butir {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--garis);
+  border-radius: var(--lengkung);
+  background: var(--latar-2);
+  text-decoration: none;
+  color: var(--tinta);
+  transition: border-color 120ms ease;
+}
+
+.saudara__butir:hover,
+.saudara__butir:focus-visible {
+  border-color: var(--aksen);
+}
+
+.saudara__nama {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+/* Bahasanya yang membedakan keempat situs, jadi ia diberi warna aksen alih-alih
+   diperlakukan sebagai keterangan tambahan. */
+.saudara__bahasa {
+  font-size: 0.75rem;
+  color: var(--aksen);
+  white-space: nowrap;
+}
+
 @media print {
   .kepala,
   .kaki,
